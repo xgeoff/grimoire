@@ -19,8 +19,11 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.vladsch.flexmark:flexmark-all:0.64.0'
+    implementation 'com.github.jknack:handlebars:4.3.1'
     // Use the awesome Spock testing and specification framework
     testImplementation libs.spock.core
+    testImplementation gradleTestKit()
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -29,8 +32,8 @@ gradlePlugin {
     // Define the plugin
     plugins {
         greeting {
-            id = 'org.example.greeting'
-            implementationClass = 'org.example.GrimoirePlugin'
+            id = 'biz.digitalindustry.grimoire'
+            implementationClass = 'biz.digitalindustry.grimoire.GrimoirePlugin'
         }
     }
 }
@@ -62,3 +65,5 @@ tasks.named('test') {
     // Use JUnit Jupiter for unit tests.
     useJUnitPlatform()
 }
+
+

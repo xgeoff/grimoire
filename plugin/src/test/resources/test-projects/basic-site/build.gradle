@@ -1,0 +1,7 @@
+plugins {
+    id 'biz.digitalindustry.grimoire'
+}
+
+sitegen {
+    // No overrides — let config.grim handle it
+}

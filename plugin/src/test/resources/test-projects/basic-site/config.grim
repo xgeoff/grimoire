@@ -1,0 +1,9 @@
+title = "Grimoire Test Site"
+baseUrl = "/test"
+sourceDir = "site"
+outputDir = "build/site"
+
+context = [
+    author: "Test Bot",
+    year: 2025
+]
