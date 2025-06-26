@@ -1,3 +1,5 @@
+import spock.lang.Specification
+
 class SiteGenPluginSpec extends Specification {
 
     File testDir

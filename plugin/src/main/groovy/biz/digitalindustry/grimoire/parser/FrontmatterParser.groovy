@@ -1,4 +1,4 @@
-package biz.digitalindustry.grimoire
+package biz.digitalindustry.grimoire.parser
 
 class FrontmatterParser {
 
@@ -11,7 +11,8 @@ class FrontmatterParser {
         def text = file.text
 
         // Match frontmatter block: starts with --- and ends with ---
-        def matcher = text =~ /^---\s*\n(.*?\n?)^---\s*\n?/ms
+        def pattern = ~/(?ms)^---\s*\n(.*?)^---\s*\n?/
+        def matcher = pattern.matcher(text)
 
         if (matcher.find()) {
             def frontmatterText = matcher.group(1)

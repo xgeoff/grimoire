@@ -1,22 +1,22 @@
-package biz.digitalindustry.grimoire
+package biz.digitalindustry.grimoire.task
 
+import biz.digitalindustry.grimoire.parser.FrontmatterParser
+import biz.digitalindustry.grimoire.MarkdownParser
 import com.github.jknack.handlebars.Handlebars
-import com.github.jknack.handlebars.Template
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 
 class SiteGenTask extends DefaultTask {
 
-    SiteGenExtension extension
+    //SiteGenExtension extension
 
     @TaskAction
     void generate() {
-        def sourceRoot = extension?.sourceDir ?: project.projectDir
-        def outputDir = extension?.outputDir ?: new File(project.layout.buildDirectory.get().asFile, "site")
-        def context = extension?.context ?: [:]
+        def context = loadConfig()
+        def sourceRoot = context?.sourceDir ?: project.projectDir
+        def outputDir = context?.outputDir ?: new File(project.layout.buildDirectory.get().asFile, "site")
         def layoutDir = new File(sourceRoot, "layouts")
         def pagesDir = new File(sourceRoot, "pages")
-        def engine = new Handlebars()
         def engine = new Handlebars()
 
         def partialsDir = new File(sourceRoot, "partials")
@@ -81,7 +81,6 @@ class SiteGenTask extends DefaultTask {
             }
         }
 
-
         // --- Process assets ---
         def assetsDir = new File(sourceRoot, "assets")
         if (assetsDir.exists()) {
@@ -122,5 +121,34 @@ class SiteGenTask extends DefaultTask {
         }
 
         tmpFile.delete()
+    }
+
+    Binding loadConfig() {
+        def configFile = new File(project.projectDir, 'config.grim')
+        def binding = new Binding([
+                sourceDir : 'pages',
+                outputDir : 'public',
+                siteTitle : 'Untitled Site'
+        ])
+
+        if (configFile.exists()) {
+            logger.lifecycle("Loading config from config.grim")
+            new GroovyShell(binding).evaluate(configFile)
+        } else {
+            logger.lifecycle("No config.grim found. Using default settings.")
+        }
+
+        def sourceDir = project.file(binding.getVariable('sourceDir'))
+        def outputDir = project.file(binding.getVariable('outputDir'))
+        def siteTitle = binding.getVariable('siteTitle')
+
+        def layoutsDir = new File(sourceDir, 'layouts')
+        def pagesDir = new File(sourceDir, 'pages')
+        def layoutFile = new File(layoutsDir, 'default.hbs')
+
+        if (!layoutFile.exists()) throw new IllegalStateException("Missing layout file: ${layoutFile}")
+        if (!pagesDir.exists()) throw new IllegalStateException("Missing pages directory: ${pagesDir}")
+
+        return binding
     }
 }
