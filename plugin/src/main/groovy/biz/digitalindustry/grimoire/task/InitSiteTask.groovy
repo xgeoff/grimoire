@@ -1,4 +1,4 @@
-package biz.digitalindustry.grimoire.task
+package biz.digitalindustry.grimoire
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.options.Option
@@ -15,38 +15,43 @@ class InitSiteTask extends DefaultTask {
 
     @TaskAction
     void init() {
-        def root = targetDir ? new File(project.projectDir, targetDir) : project.projectDir
-        if (!root.exists()) {
-            root.mkdirs()
-            logger.lifecycle("Created root directory: $root")
+        def targetRoot = targetDir ? new File(project.projectDir, targetDir) : project.projectDir
+        if (!targetRoot.exists()) {
+            targetRoot.mkdirs()
+            logger.lifecycle("Created root directory: $targetRoot")
         }
 
-        // Directory structure
-        def structure = [
-                "layouts/default.hbs",
-                "pages/index.md",
-                "config.grim"
-        ]
+        def basePath = "basic-site-scaffold/site/"
+        def classLoader = getClass().classLoader
+        def scaffoldRoot = classLoader.getResource(basePath)
 
-        structure.each { relativePath ->
-            def file = new File(root, relativePath)
-            if (!file.exists()) {
-                file.parentFile.mkdirs()
-                file.text = getResourceText("templates/${relativePath}")
-                logger.lifecycle("Created: ${file}")
-            } else {
-                logger.lifecycle("Already exists, skipping: ${file}")
+        if (!scaffoldRoot) {
+            throw new IllegalStateException("Could not find scaffold at: $basePath")
+        }
+
+        // Iterate over resources recursively
+        def uri = scaffoldRoot.toURI()
+        def fileRoot = new File(uri)
+
+        if (!fileRoot.directory) {
+            throw new IllegalStateException("Scaffold root is not a directory: $fileRoot")
+        }
+
+        fileRoot.eachFileRecurse { sourceFile ->
+            if (sourceFile.isFile()) {
+                def relativePath = sourceFile.path - fileRoot.path
+                def destFile = new File(targetRoot, relativePath)
+
+                if (!destFile.exists()) {
+                    destFile.parentFile.mkdirs()
+                    destFile.bytes = sourceFile.bytes
+                    logger.lifecycle("Created: $destFile")
+                } else {
+                    logger.lifecycle("Already exists, skipping: $destFile")
+                }
             }
         }
 
-        logger.lifecycle("Grimoire site skeleton initialized at: ${root}")
-    }
-
-    private String getResourceText(String path) {
-        def stream = getClass().classLoader.getResourceAsStream(path)
-        if (!stream) {
-            throw new IllegalStateException("Template resource not found: $path")
-        }
-        return stream.text
+        logger.lifecycle("Grimoire site scaffold initialized at: $targetRoot")
     }
 }
