@@ -5,12 +5,10 @@ import org.gradle.api.Project
 
 class SiteGenPlugin implements Plugin<Project> {
     void apply(Project project) {
-        def extension = project.extensions.create('sitegen', SiteGenExtension)
 
-        project.tasks.register('generateSite', SiteGenTask) {
+        project.tasks.register('grim', SiteGenTask) {
             it.group = 'Site'
             it.description = 'Generates static HTML content from templates'
-            it.extension = extension
         }
     }
 }
