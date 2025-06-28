@@ -1,19 +1,38 @@
+import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Specification
+import java.nio.file.Files
+import org.gradle.testkit.runner.GradleRunner
+
+import java.nio.file.Path
+import java.nio.file.Paths;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 class SiteGenPluginSpec extends Specification {
 
-    File testDir
+    Path testDir
 
     def setup() {
-        def fixture = new File("src/test/resources/test-projects/basic-site")
-        testDir = Files.createTempDirectory("grimoire-test").toFile()
+        def fixture = Paths.get("src/test/resources/test-projects/basic-site")
+        testDir = Files.createTempDirectory("grimoire-test-site")
+
         copyProject(fixture, testDir)
+    }
+
+    def "plugin registers task"() {
+        given:
+        def project = ProjectBuilder.builder().build()
+
+        when:
+        project.plugins.apply("biz.digitalindustry.grimoire")
+
+        then:
+        project.tasks.findByName("grim") != null
     }
 
     def "renders site from fixture project"() {
         when:
         def result = GradleRunner.create()
-                .withProjectDir(testDir)
+                .withProjectDir(testDir.toFile())
                 .withArguments("generateSite")
                 .withPluginClasspath()
                 .build()
@@ -23,15 +42,14 @@ class SiteGenPluginSpec extends Specification {
         new File(testDir, "build/site/index.html").text.contains("Hello")
     }
 
-    void copyProject(File source, File dest) {
-        source.eachFileRecurse { file ->
-            def relPath = file.path - source.path
-            def target = new File(dest, relPath)
-            if (file.isDirectory()) {
-                target.mkdirs()
+    void copyProject(Path source, Path target) {
+        Files.walk(source).forEach { path ->
+            Path relative = source.relativize(path)
+            Path dest = target.resolve(relative)
+            if (Files.isDirectory(path)) {
+                Files.createDirectories(dest)
             } else {
-                target.parentFile.mkdirs()
-                file.withInputStream { i -> target.withOutputStream { o -> o << i } }
+                Files.copy(path, dest, REPLACE_EXISTING)
             }
         }
     }

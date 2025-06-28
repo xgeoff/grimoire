@@ -1,15 +1,21 @@
 package biz.digitalindustry.grimoire.task
 
+import biz.digitalindustry.grimoire.SiteGenExtension
 import biz.digitalindustry.grimoire.parser.FrontmatterParser
-import biz.digitalindustry.grimoire.MarkdownParser
+import biz.digitalindustry.grimoire.parser.MarkdownParser
 import com.github.jknack.handlebars.Handlebars
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.options.Option
 
 class SiteGenTask extends DefaultTask {
 
-    //SiteGenExtension extension
-
+    @org.gradle.api.tasks.Internal // prevents Gradle from treating this as an input for up-to-date checking
+    SiteGenExtension siteGenExtension
+/*
+    @Option(option = "outputDir", description = "Output directory")
+    String outputDir
+*/
     @TaskAction
     void generate() {
         def context = loadConfig()

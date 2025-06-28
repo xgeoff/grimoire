@@ -1,4 +1,4 @@
-package biz.digitalindustry.grimoire
+package biz.digitalindustry.grimoire.parser
 
 import com.vladsch.flexmark.parser.Parser
 import com.vladsch.flexmark.html.HtmlRenderer

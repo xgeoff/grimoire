@@ -33,11 +33,10 @@ dependencies {
 }
 
 gradlePlugin {
-    // Define the plugin
     plugins {
-        greeting {
+        siteGen {
             id = 'biz.digitalindustry.grimoire'
-            implementationClass = 'biz.digitalindustry.grimoire.GrimoirePlugin'
+            implementationClass = 'biz.digitalindustry.grimoire.SiteGenPlugin'
         }
     }
 }

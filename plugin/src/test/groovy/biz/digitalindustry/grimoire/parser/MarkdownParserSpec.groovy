@@ -1,6 +1,6 @@
 package biz.digitalindustry.grimoire.parser
 
-import biz.digitalindustry.grimoire.MarkdownParser
+
 import spock.lang.Specification
 
 class MarkdownParserSpec extends Specification {
