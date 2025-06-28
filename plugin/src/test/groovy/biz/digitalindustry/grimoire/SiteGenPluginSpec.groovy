@@ -18,7 +18,7 @@ class SiteGenPluginSpec extends Specification {
         copyProject(fixture, testDir)
     }
 
-    def "plugin registers task"() {
+    def "plugin registers grim task"() {
         given:
         def project = ProjectBuilder.builder().build()
 
@@ -29,11 +29,22 @@ class SiteGenPluginSpec extends Specification {
         project.tasks.findByName("grim") != null
     }
 
+    def "plugin registers grim-init task"() {
+        given:
+        def project = ProjectBuilder.builder().build()
+
+        when:
+        project.plugins.apply("biz.digitalindustry.grimoire")
+
+        then:
+        project.tasks.findByName("grim-init") != null
+    }
+
     def "renders site from fixture project"() {
         when:
         def result = GradleRunner.create()
                 .withProjectDir(testDir.toFile())
-                .withArguments("generateSite")
+                .withArguments("grim")
                 .withPluginClasspath()
                 .build()
 

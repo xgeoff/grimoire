@@ -3,7 +3,7 @@ baseUrl = "/test"
 sourceDir = "site"
 outputDir = "build/site"
 
-context = [
-    author: "Test Bot",
+author : [
+    name: "Test Bot",
     year: 2025
 ]
