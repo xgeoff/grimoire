@@ -9,18 +9,17 @@
 ├── partials/          ← Optional Handlebars partials
 ├── data/              ← Optional page data (YAML/JSON/Groovy)
 ├── assets/            ← CSS/JS/images to copy as-is
-└── build/
-└── site/          ← Final rendered output (or configurable)
+└── public/            ← Final rendered output (or configurable)
 
 
 | Component     | Technology                                                   |
-| ------------- | ------------------------------------------------------------ |
+| ------------- |--------------------------------------------------------------|
 | Templating    | [Handlebars.java](https://github.com/jknack/handlebars.java) |
 | Gradle Plugin | Written in Groovy                                            |
-| Task          | `generateSite`                                               |
-| Page Input    | HTML, Markdown (optional)                                    |
-| Metadata      | Optional Groovy/JSON/YAML front matter                       |
-| Output        | `build/site/` directory                                      |
+| Task          | `grim`                                                       |
+| Page Input    | HTML, Markdown                                               |
+| Metadata      | Optional Groovy  front matter                                |
+| Output        | `public/` directory (configurable)                           |
 
 | File Type                      | Default Action                  | Optional Processing           | Notes |
 | ------------------------------ | ------------------------------- | ----------------------------- | ----- |

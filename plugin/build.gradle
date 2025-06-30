@@ -34,7 +34,7 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        siteGen {
+        grim {
             id = 'biz.digitalindustry.grimoire'
             implementationClass = 'biz.digitalindustry.grimoire.SiteGenPlugin'
         }

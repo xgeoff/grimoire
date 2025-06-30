@@ -19,11 +19,13 @@ class SiteGenTask extends DefaultTask {
     @TaskAction
     void generate() {
         def context = loadConfig()
-        def sourceRoot = context?.sourceDir ?: project.projectDir
-        def outputDir = context?.outputDir ?: new File(project.layout.buildDirectory.get().asFile, "site")
+        def sourceRoot = new File(context?.sourceDir)
+        def outputDir = new File(sourceRoot, context?.outputDir)
         def layoutDir = new File(sourceRoot, "layouts")
         def pagesDir = new File(sourceRoot, "pages")
         def engine = new Handlebars()
+
+
 
         def partialsDir = new File(sourceRoot, "partials")
         if (partialsDir.exists()) {
@@ -50,11 +52,22 @@ class SiteGenTask extends DefaultTask {
             }
         }
 
-        println "Generating site from: ${sourceRoot}, output to: ${outputDir}"
+        def msg = "Generating site from: ${sourceRoot}, output to: ${outputDir}"
+
+        if (outputDir.exists()) {
+            outputDir.deleteDir() // Groovy method: deletes dir + all contents recursively
+        }
         outputDir.mkdirs()
 
+        def logfile = new File(outputDir, "log.txt")
+        logfile << "hello world"
+        logfile << "\n$msg"
+        msg = pagesDir.exists() ? "Found pages directory: ${pagesDir}" : "No pages directory found"
+        logfile << "\n$msg"
+        logfile << "\n${pagesDir.absolutePath}"
         // --- Render pages ---
         if (pagesDir.exists()) {
+            logfile << pagesDir.list().joinToString("\n")
             pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
                 def parsed = FrontmatterParser.parse(pageFile)
                 def pageContext = parsed.metadata
@@ -129,10 +142,9 @@ class SiteGenTask extends DefaultTask {
         tmpFile.delete()
     }
 
-    Binding loadConfig() {
+    Map<String, Object> loadConfig() {
         def configFile = new File(project.projectDir, 'config.grim')
         def binding = new Binding([
-                sourceDir : 'pages',
                 outputDir : 'public',
                 siteTitle : 'Untitled Site'
         ])
@@ -144,17 +156,27 @@ class SiteGenTask extends DefaultTask {
             logger.lifecycle("No config.grim found. Using default settings.")
         }
 
-        def sourceDir = project.file(binding.getVariable('sourceDir'))
-        def outputDir = project.file(binding.getVariable('outputDir'))
-        def siteTitle = binding.getVariable('siteTitle')
+        def sourceDirFile
+        def sourceDir = binding.getVariable('sourceDir')
+        if (!sourceDir) {
+            sourceDir = ""
+            binding.setVariable('sourceDir', sourceDir)
+            sourceDirFile = project.projectDir
+            logger.lifecycle("Using default source directory: ${sourceDir}")
+        } else {
+            sourceDirFile = new File(project.projectDir, sourceDir)
+            if (!sourceDirFile.exists()) {
+                throw new IllegalStateException("Source directory does not exist: ${sourceDirFile}")
+            }
+            logger.lifecycle("Using source directory: ${sourceDirFile}")
+        }
 
-        def layoutsDir = new File(sourceDir, 'layouts')
-        def pagesDir = new File(sourceDir, 'pages')
-        def layoutFile = new File(layoutsDir, 'default.hbs')
+        def layoutsDir = new File(sourceDirFile, "layouts")
+        def pagesDir = new File(sourceDirFile, 'pages')
 
         if (!layoutFile.exists()) throw new IllegalStateException("Missing layout file: ${layoutFile}")
         if (!pagesDir.exists()) throw new IllegalStateException("Missing pages directory: ${pagesDir}")
 
-        return binding
+        return binding.variables
     }
 }

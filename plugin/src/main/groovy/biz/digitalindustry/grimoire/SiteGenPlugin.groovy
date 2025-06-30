@@ -20,6 +20,13 @@ class SiteGenPlugin implements Plugin<Project> {
             task.group = "documentation"
             task.description = "Generate a static site from templates and markdown"
             task.siteGenExtension = extension
+            doLast {
+                project.exec {
+                    commandLine "echo", "Hello from grim task"
+                    standardOutput = System.out
+                    errorOutput = System.err
+                }
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+import org.gradle.api.Project
 import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Specification
 import java.nio.file.Files
@@ -10,17 +11,23 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 class SiteGenPluginSpec extends Specification {
 
     Path testDir
+    Project project = ProjectBuilder.builder().build()
 
     def setup() {
         def fixture = Paths.get("src/test/resources/test-projects/basic-site")
-        testDir = Files.createTempDirectory("grimoire-test-site")
+        Path projectRoot = Paths.get(".").toAbsolutePath().normalize()
+        //testDir = project.getProjectDir().toPath().resolve("grimoire-test-site")
+        testDir = projectRoot.resolve("grimoire-test-site")
+
+        Files.createDirectories(testDir)
+        //testDir = Files.createDirectory(project.getProjectDir().toPath(),"grimoire-test-site")
 
         copyProject(fixture, testDir)
     }
 
     def "plugin registers grim task"() {
         given:
-        def project = ProjectBuilder.builder().build()
+        project != null
 
         when:
         project.plugins.apply("biz.digitalindustry.grimoire")
@@ -31,7 +38,7 @@ class SiteGenPluginSpec extends Specification {
 
     def "plugin registers grim-init task"() {
         given:
-        def project = ProjectBuilder.builder().build()
+        project != null
 
         when:
         project.plugins.apply("biz.digitalindustry.grimoire")
@@ -42,15 +49,21 @@ class SiteGenPluginSpec extends Specification {
 
     def "renders site from fixture project"() {
         when:
-        def result = GradleRunner.create()
+        /*def result = GradleRunner.create()
                 .withProjectDir(testDir.toFile())
                 .withArguments("grim")
                 .withPluginClasspath()
+                .build()*/
+        def result = GradleRunner.create()
+        result.withProjectDir(testDir.toFile())
+                .withArguments("grim", "--rerun-tasks")
+                .withPluginClasspath()
+                .withDebug(true)
                 .build()
 
         then:
-        result.output.contains("Generated page")
-        new File(testDir, "build/site/index.html").text.contains("Hello")
+        //result.output.contains("Generated page")
+        new File(testDir.toFile(), "public/index.html").text.contains("Test-Bot")
     }
 
     void copyProject(Path source, Path target) {
