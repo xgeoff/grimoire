@@ -156,26 +156,31 @@ class SiteGenTask extends DefaultTask {
             logger.lifecycle("No config.grim found. Using default settings.")
         }
 
-        def sourceDirFile
-        def sourceDir = binding.getVariable('sourceDir')
-        if (!sourceDir) {
-            sourceDir = ""
-            binding.setVariable('sourceDir', sourceDir)
-            sourceDirFile = project.projectDir
-            logger.lifecycle("Using default source directory: ${sourceDir}")
-        } else {
-            sourceDirFile = new File(project.projectDir, sourceDir)
-            if (!sourceDirFile.exists()) {
+        def sourceDir = binding.getVariable('sourceDir') ?: ""
+        binding.setVariable('sourceDir', sourceDir)
+
+        def sourceDirFile = new File(project.projectDir, sourceDir)
+        if (!sourceDirFile.exists()) {
+            if (sourceDir) {
                 throw new IllegalStateException("Source directory does not exist: ${sourceDirFile}")
+            } else {
+                sourceDirFile = project.projectDir
+                logger.lifecycle("Using default source directory: (project root)")
             }
+        } else {
             logger.lifecycle("Using source directory: ${sourceDirFile}")
         }
 
-        def layoutsDir = new File(sourceDirFile, "layouts")
-        def pagesDir = new File(sourceDirFile, 'pages')
+        def layoutFile = new File(sourceDirFile, "layouts/default.html")
+        def pagesDir  = new File(sourceDirFile, "pages")
 
-        if (!layoutFile.exists()) throw new IllegalStateException("Missing layout file: ${layoutFile}")
-        if (!pagesDir.exists()) throw new IllegalStateException("Missing pages directory: ${pagesDir}")
+        if (!layoutFile.exists()) {
+            throw new IllegalStateException("Missing layout file: ${layoutFile}")
+        }
+
+        if (!pagesDir.exists()) {
+            throw new IllegalStateException("Missing pages directory: ${pagesDir}")
+        }
 
         return binding.variables
     }
