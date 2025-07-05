@@ -1,7 +1,0 @@
-hello worldhello worldGenerating site from: ., output to: ./publicfalsehello world
-Generating site from: ., output to: ./public
-No pages directory found
-{pagesDir.absolutePath}hello world
-Generating site from: ., output to: ./public
-No pages directory found
-/Users/gporemba/Projects/personal/grimoire/plugin/./pages

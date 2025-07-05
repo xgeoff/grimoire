@@ -22,7 +22,7 @@ dependencies {
     implementation 'com.vladsch.flexmark:flexmark-all:0.64.0'
     implementation 'com.github.jknack:handlebars:4.3.1'
     implementation 'com.github.rjeschke:txtmark:0.13'
-
+    implementation 'io.bit3:jsass:5.10.4'
     // Use the awesome Spock testing and specification framework
     testImplementation libs.spock.core
     testImplementation gradleTestKit()

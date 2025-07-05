@@ -3,7 +3,7 @@ baseUrl = "/test"
 //sourceDir = "site"
 outputDir = "public"
 
-author : [
+author = [
     name: "Test-Bot",
     year: 2025
 ]

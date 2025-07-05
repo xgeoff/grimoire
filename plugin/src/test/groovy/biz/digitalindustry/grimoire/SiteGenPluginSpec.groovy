@@ -18,7 +18,7 @@ class SiteGenPluginSpec extends Specification {
         Path projectRoot = Paths.get(".").toAbsolutePath().normalize()
         //testDir = project.getProjectDir().toPath().resolve("grimoire-test-site")
         testDir = projectRoot.resolve("grimoire-test-site")
-
+        testDir.toFile().delete()
         Files.createDirectories(testDir)
         //testDir = Files.createDirectory(project.getProjectDir().toPath(),"grimoire-test-site")
 
