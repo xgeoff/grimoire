@@ -33,12 +33,13 @@ class SiteGenPlugin implements Plugin<Project> {
             // You would configure this task with properties as needed.
         }
 
-        // Register a 'grim-serve' task
-        project.tasks.register("grim-serve", ServeTask) {
-            group = TASK_GROUP
-            description = "Serves the generated site locally for development."
-            // This task should likely run after the site is generated.
-            dependsOn("grim-generate")
+        project.tasks.register("grim-serve", ServeTask) { task ->
+            task.group = TASK_GROUP
+            task.description = "Serves the generated site locally."
+            task.webRootDir.set(generateTaskProvider.flatMap { it.outputDir })
+
+            // Pass the config file provider from the extension to the task
+            task.configFile.set(extension.configFile)
         }
 
         // Register the `grim` task and inject the extension

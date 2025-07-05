@@ -1,23 +1,25 @@
 package biz.digitalindustry.grimoire.task
 
 import com.sun.net.httpserver.HttpServer
+import groovy.util.ConfigObject
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.file.Files
 
-/**
- * A Gradle task that serves a static directory over HTTP.
- * This version is written in a more idiomatic Groovy style.
- */
 abstract class ServeTask extends DefaultTask {
 
     @InputDirectory
     abstract DirectoryProperty getWebRootDir()
+
+    @InputFile
+    abstract RegularFileProperty getConfigFile()
 
     @Input
     abstract Property<Integer> getPort()
@@ -28,33 +30,63 @@ abstract class ServeTask extends DefaultTask {
 
     @TaskAction
     void serve() {
+        // 1. The action now delegates to testable logic methods
+        def config = parseConfig()
+        def serverPort = resolvePort(config)
         def rootDir = webRootDir.get().asFile
-        def serverPort = port.get()
 
+        // 2. Side-effects (server creation, blocking) remain here
+        def server = createAndConfigureServer(serverPort, rootDir)
+        server.start()
+
+        logger.lifecycle("Grimoire server started on http://localhost:${serverPort}")
+        logger.lifecycle("Serving files from: ${rootDir.absolutePath}")
+        logger.lifecycle("Press Ctrl+C to stop the server.")
+
+        Thread.currentThread().join()
+    }
+
+    /**
+     * Parses the configuration file. Visible for testing.
+     * @return A ConfigObject representing the parsed file.
+     */
+    ConfigObject parseConfig() {
+        def configFile = this.configFile.get().asFile
+        if (!configFile.exists() || configFile.length() == 0) {
+            return new ConfigObject() // Return empty config for non-existent/empty files
+        }
+        return new ConfigSlurper().parse(configFile.toURI().toURL())
+    }
+
+    /**
+     * Resolves the port to use, prioritizing the config file over the default. Visible for testing.
+     * @param config The parsed ConfigObject.
+     * @return The resolved port number.
+     */
+    int resolvePort(ConfigObject config) {
+        // Use the port from config.grim, or the task's default if not specified
+        return config.server?.port ?: port.get()
+    }
+
+    // --- Private helper methods for server implementation ---
+
+    private HttpServer createAndConfigureServer(int serverPort, File rootDir) {
         def server = HttpServer.create(new InetSocketAddress(serverPort), 0)
         server.createContext("/", { exchange ->
-            // Use Groovy's 'with' to reduce repetition on the 'exchange' object
             exchange.with {
                 try {
-                    // Groovy Truth: an empty or null string is 'false'
                     def requestPath = requestURI.path
                     def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
-
-                    // Use Groovy's GDK for simpler File handling
                     def requestedFile = new File(rootDir, effectivePath)
 
-                    // Security check using canonical paths to prevent directory traversal
                     if (!requestedFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
                         sendError(403, "Forbidden")
                         return
                     }
 
-                    // Groovy GDK's isFile() is cleaner than Files.exists() && !Files.isDirectory()
                     if (requestedFile.isFile()) {
-                        // The .bytes property is a Groovy shortcut for reading all bytes from a file
                         def fileBytes = requestedFile.bytes
                         def contentType = Files.probeContentType(requestedFile.toPath()) ?: 'application/octet-stream'
-
                         responseHeaders.set("Content-Type", contentType)
                         sendResponseHeaders(200, fileBytes.length)
                         responseBody.withStream { it.write(fileBytes) }
@@ -69,22 +101,10 @@ abstract class ServeTask extends DefaultTask {
                 }
             }
         })
-
         server.executor = null
-        server.start()
-
-        logger.lifecycle("Grimoire server started on http://localhost:${serverPort}")
-        logger.lifecycle("Serving files from: ${rootDir.absolutePath}")
-        logger.lifecycle("Press Ctrl+C to stop the server.")
-
-        // Block the task from finishing so the server can run
-        Thread.currentThread().join()
+        return server
     }
 
-    /**
-     * Helper to send an error response.
-     * The 'exchange' object is the implicit 'delegate' from the parent 'with' block.
-     */
     private void sendError(int code, String message) {
         def response = message.bytes
         sendResponseHeaders(code, response.length)
