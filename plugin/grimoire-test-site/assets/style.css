@@ -2,3 +2,27 @@ body {
   font-family: sans-serif;
   background-color: #f0f0f0;
 }
+/*
+ * Styles for the main site footer
+ */
+.site-footer {
+  margin-top: 40px; /* Adds some space between the main content and the footer */
+  padding: 25px 0; /* Provides vertical spacing inside the footer */
+  border-top: 1px solid #e0e0e0; /* A subtle line to visually separate it */
+  text-align: center; /* Centers the text */
+  font-size: 0.9em; /* Makes the font slightly smaller than the body text */
+  color: #666; /* A muted gray for a less prominent look */
+}
+
+.site-footer p {
+  margin: 5px 0; /* Reduces the default paragraph margin for tighter lines */
+}
+
+.site-footer a {
+  color: #333; /* A darker, more readable color for links */
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline; /* A classic hover effect for discoverability */
+}

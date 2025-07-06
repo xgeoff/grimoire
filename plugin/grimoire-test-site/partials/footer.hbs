@@ -1,7 +1,6 @@
-<footer style="margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem;">
-    <p>{{uppercase author.name}}</p>
-    <p>{{dateFormat "2025-06-22" "MMM yyyy"}}</p>
-
+<footer class="site-footer">
+    <p>&copy; {{author.year}} {{author.name}}</p>
+    <p>Generated with Grimoire</p>
     {{#if baseUrl}}
         <p><a href="{{baseUrl}}/privacy">Privacy Policy</a></p>
     {{/if}}

@@ -1,10 +1,10 @@
-package biz.digitalindustry.grimoire
+package biz.digitalindustry.grimoire.task
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.TaskAction
 
-class InitSiteTask extends DefaultTask {
+abstract class InitSiteTask extends DefaultTask {
 
     private String targetDir
 

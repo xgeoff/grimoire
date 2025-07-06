@@ -3,8 +3,10 @@ package biz.digitalindustry.grimoire.task
 import biz.digitalindustry.grimoire.parser.FrontmatterParser
 import biz.digitalindustry.grimoire.parser.MarkdownParser
 import com.github.jknack.handlebars.Handlebars
+import com.github.jknack.handlebars.io.CompositeTemplateLoader
 import com.github.jknack.handlebars.io.FileTemplateLoader
 import groovy.util.ConfigObject
+import groovy.io.FileType
 import io.bit3.jsass.Compiler
 import io.bit3.jsass.Options
 import io.bit3.jsass.Output
@@ -83,17 +85,23 @@ abstract class SiteGenTask extends DefaultTask {
         return new ConfigObject()
     }
 
-    /**
-     * Creates and configures the Handlebars template engine.
-     */
+/**
+ * Creates and configures the Handlebars template engine.
+ */
     private Handlebars createHandlebarsEngine(File sourceRoot, ConfigObject config) {
+        def layoutsDir = new File(sourceRoot, config.paths?.layouts ?: "layouts")
         def partialsDir = new File(sourceRoot, config.paths?.partials ?: "partials")
         def helpersDir = new File(sourceRoot, config.paths?.helpers ?: "helpers")
 
-        def loader = new FileTemplateLoader(partialsDir, ".hbs")
-        def engine = new Handlebars(loader)
+        // --- FIX: Create loaders for both layouts and partials ---
+        def layoutLoader = new FileTemplateLoader(layoutsDir, ".hbs")
+        def partialLoader = new FileTemplateLoader(partialsDir, ".hbs")
 
-        // Register helpers from .groovy files
+        // Combine them so Handlebars can find templates in either directory
+        def compositeLoader = new CompositeTemplateLoader(layoutLoader, partialLoader)
+        def engine = new Handlebars(compositeLoader)
+
+        // Register helpers from .groovy files (this part remains the same)
         if (helpersDir.exists()) {
             logger.info("Registering helpers from: {}", helpersDir)
             helpersDir.eachFileMatch(~/.*\.groovy/) { File helperFile ->
@@ -115,6 +123,7 @@ abstract class SiteGenTask extends DefaultTask {
         return engine
     }
 
+    // In: src/main/groovy/biz/digitalindustry/grimoire/task/SiteGenTask.groovy
     /**
      * Finds and renders all page files (.html, .md).
      */
@@ -129,7 +138,7 @@ abstract class SiteGenTask extends DefaultTask {
             try {
                 def parsed = FrontmatterParser.parse(pageFile)
                 def pageContext = parsed.metadata
-                def mergedContext = config + pageContext // Groovy's map addition is great for this
+                def mergedContext = config + pageContext
 
                 def bodyContent = pageFile.name.endsWith(".md") ? MarkdownParser.toHtml(parsed.content) : parsed.content
                 def renderedContent = engine.compileInline(bodyContent).apply(mergedContext)
@@ -141,7 +150,9 @@ abstract class SiteGenTask extends DefaultTask {
                     throw new GradleException("Layout not found: ${layoutFile.path} for page ${pageFile.name}")
                 }
 
-                def layoutTemplate = engine.compile(layoutFile.path - layoutDir.path - File.separator)
+                // --- FIX: Compile by name, letting the loader find the file ---
+                // The loader will automatically add the '.hbs' suffix.
+                def layoutTemplate = engine.compile(layoutName)
                 def finalOutput = layoutTemplate.apply(mergedContext + [content: renderedContent])
 
                 def outFile = new File(outputRoot, pageFile.name.replaceAll(/\.(html|md)$/, '.html'))

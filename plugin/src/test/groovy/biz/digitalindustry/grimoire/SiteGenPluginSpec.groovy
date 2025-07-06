@@ -48,22 +48,23 @@ class SiteGenPluginSpec extends Specification {
     }
 
     def "renders site from fixture project"() {
-        when:
-        /*def result = GradleRunner.create()
-                .withProjectDir(testDir.toFile())
-                .withArguments("grim")
-                .withPluginClasspath()
-                .build()*/
+        when: "The grim-generate task is run"
         def result = GradleRunner.create()
-        result.withProjectDir(testDir.toFile())
-                .withArguments("grim", "--rerun-tasks")
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-generate", "--stacktrace")
                 .withPluginClasspath()
-                .withDebug(true)
                 .build()
 
-        then:
-        //result.output.contains("Generated page")
-        new File(testDir.toFile(), "public/index.html").text.contains("Test-Bot")
+        then: "The output file contains the expected content in the new location"
+        // --- THIS IS THE FIX ---
+        // The output directory now defaults to 'public' at the project root.
+        def outputFile = new File(testDir.toFile(), "public/index.html")
+
+        // Check that the output file was actually created
+        assert outputFile.exists()
+
+        // Check the content
+        assert outputFile.text.contains("Test-Bot")
     }
 
     void copyProject(Path source, Path target) {

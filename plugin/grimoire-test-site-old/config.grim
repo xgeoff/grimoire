@@ -1,0 +1,9 @@
+title = "Grimoire Test Site"
+baseUrl = "/test"
+//sourceDir = "site"
+outputDir = "public"
+
+author = [
+    name: "Test-Bot",
+    year: 2025
+]
