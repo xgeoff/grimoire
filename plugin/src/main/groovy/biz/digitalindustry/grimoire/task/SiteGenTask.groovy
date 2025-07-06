@@ -1,181 +1,206 @@
 package biz.digitalindustry.grimoire.task
 
-import biz.digitalindustry.grimoire.SiteGenExtension
 import biz.digitalindustry.grimoire.parser.FrontmatterParser
 import biz.digitalindustry.grimoire.parser.MarkdownParser
 import com.github.jknack.handlebars.Handlebars
-import com.github.jknack.handlebars.Helper
 import com.github.jknack.handlebars.io.FileTemplateLoader
+import groovy.util.ConfigObject
+import io.bit3.jsass.Compiler
+import io.bit3.jsass.Options
+import io.bit3.jsass.Output
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Internal
-import org.gradle.api.tasks.TaskAction
-import org.gradle.api.tasks.options.Option
-import io.bit3.jsass.*
+import org.gradle.api.GradleException
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.*
 
-class SiteGenTask extends DefaultTask {
+/**
+ * The main task for generating the static site.
+ * This version is refactored to use modern Gradle APIs for better performance and maintainability.
+ */
+@CacheableTask // This task can be cached if inputs/outputs are the same across builds
+abstract class SiteGenTask extends DefaultTask {
 
-    @Internal // prevents Gradle from treating this as an input for up-to-date checking
-    SiteGenExtension siteGenExtension
-    @Internal
-    @Option(option = "outputDir", description = "Output directory")
-    String outputDir
+    // --- Task Inputs ---
+    // By declaring inputs, we enable Gradle's up-to-date checking.
+    // The task will only run if one of these files or directories changes.
+
+    @InputFile
+    @PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract RegularFileProperty getConfigFile()
+
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getSourceDir()
+
+    // --- Task Outputs ---
+    // Declaring the output directory allows Gradle to know what this task creates.
+    // This is crucial for incremental builds, caching, and dependency management.
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
 
     @TaskAction
     void generate() {
-        def context = loadConfig()
-        def sourceDir = context?.sourceDir
-        def sourceRoot = sourceDir == null ? project.projectDir : new File(project.projectDir, sourceDir)
-        def outputDir = outputDir ?: context?.outputDir ?: "public"
-        def outputRoot = new File(project.projectDir, outputDir)
-        def layoutDir = new File(sourceRoot, "layouts")
-        def pagesDir = new File(sourceRoot, "pages")
-        def partialsDir = new File(sourceRoot, "partials")
-        def helpersDir = new File(sourceRoot, "helpers")
-        def assetsDir = new File(sourceRoot, "assets")
+        // 1. Setup: Clean output directory and parse configuration
+        cleanOutputDir()
+        def config = parseConfig()
+        def sourceRoot = sourceDir.get().asFile
+        def outputRoot = outputDir.get().asFile
+
+        // 2. Initialize Handlebars engine
+        def engine = createHandlebarsEngine(sourceRoot, config)
+
+        // 3. Process content and assets
+        processPages(sourceRoot, outputRoot, config, engine)
+        processAssets(sourceRoot, outputRoot, config, engine)
+
+        logger.lifecycle("✅ Grimoire site generation complete.")
+    }
+
+    /**
+     * Deletes the output directory to ensure a clean build.
+     */
+    private void cleanOutputDir() {
+        def outputRoot = outputDir.get().asFile
+        if (outputRoot.exists()) {
+            project.delete(outputRoot)
+        }
+        outputRoot.mkdirs()
+        logger.info("Cleaned output directory: {}", outputRoot)
+    }
+
+    /**
+     * Parses the main config.grim file.
+     */
+    private ConfigObject parseConfig() {
+        def configFile = this.configFile.get().asFile
+        if (configFile.exists()) {
+            logger.info("Loading config from {}", configFile)
+            return new ConfigSlurper().parse(configFile.toURI().toURL())
+        }
+        logger.warn("No config file found at {}. Using empty configuration.", configFile)
+        return new ConfigObject()
+    }
+
+    /**
+     * Creates and configures the Handlebars template engine.
+     */
+    private Handlebars createHandlebarsEngine(File sourceRoot, ConfigObject config) {
+        def partialsDir = new File(sourceRoot, config.paths?.partials ?: "partials")
+        def helpersDir = new File(sourceRoot, config.paths?.helpers ?: "helpers")
+
         def loader = new FileTemplateLoader(partialsDir, ".hbs")
         def engine = new Handlebars(loader)
 
-        if (outputRoot.exists()) {
-            outputRoot.deleteDir() // Groovy method: deletes dir + all contents recursively
-        }
-        outputRoot.mkdirs()
-
-        def logfile = new File(project.projectDir, "log.txt")
-        logfile << "Grimoire Site Generator Log\n"
-        logfile << "Source root: ${sourceRoot}\n"
-
-        logfile << "Context content: ${context}\n"
-        logfile << "Author name : ${context.author?.name}\n"
-        logfile << "Author year : ${context.year?.name}\n"
-        /*if (partialsDir.exists()) {
-            logfile << "\n Processing partials from: ${partialsDir}"
-            partialsDir.eachFileMatch(~/.*\.hbs/) { File partial ->
-                def name = partial.name.replaceFirst(/\.hbs$/, "")
-                def content = partial.text
-                engine.registerTemplate(name, engine.compileInline(content))
-                println "Registered partial: $name"
-            }
-        }*/
-
+        // Register helpers from .groovy files
         if (helpersDir.exists()) {
-            logfile << "\n Processing helpers from: ${helpersDir}"
+            logger.info("Registering helpers from: {}", helpersDir)
             helpersDir.eachFileMatch(~/.*\.groovy/) { File helperFile ->
                 def helperName = helperFile.name.replaceFirst(/\.groovy$/, "")
-                logfile << "\n About to parse helper: ${helperName}"
-                def script = new GroovyShell(this.class.classLoader).parse(helperFile)
-                logfile << "\n About to run helper: ${helperName}"
-                def helper = script.run()
-                if (helper instanceof com.github.jknack.handlebars.Helper) {
-                    engine.registerHelper(helperName, helper)
-                    logfile << "Registered helper: $helperName"
-                } else {
-                    logfile << "⚠️ Helper file '${helperFile.name}' did not return a valid Handlebars Helper"
+                try {
+                    def script = new GroovyShell(this.class.classLoader).parse(helperFile)
+                    def helper = script.run()
+                    if (helper instanceof com.github.jknack.handlebars.Helper) {
+                        engine.registerHelper(helperName, helper)
+                        logger.debug("Registered helper: {}", helperName)
+                    } else {
+                        logger.warn("Helper file '{}' did not return a valid Handlebars Helper instance.", helperFile.name)
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to load helper '${helperName}'", e)
                 }
             }
         }
+        return engine
+    }
 
-        logfile << "\nGenerating site from: ${sourceRoot}, output to: ${outputDir}"
+    /**
+     * Finds and renders all page files (.html, .md).
+     */
+    private void processPages(File sourceRoot, File outputRoot, ConfigObject config, Handlebars engine) {
+        def pagesDir = new File(sourceRoot, config.paths?.pages ?: "pages")
+        def layoutDir = new File(sourceRoot, config.paths?.layouts ?: "layouts")
 
-        logfile << "\nPages directory: ${pagesDir.absolutePath}"
-        // --- Render pages ---
-        if (pagesDir.exists()) {
-            logfile << "\nProcessing pages in: ${pagesDir}"
-            logfile << "\n${pagesDir.list().join("\n")}"
-            pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
-                logfile << "\nparsing: ${pageFile.name}"
+        if (!pagesDir.exists()) return
+
+        logger.lifecycle("Processing pages from: {}", pagesDir)
+        pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
+            try {
                 def parsed = FrontmatterParser.parse(pageFile)
-                logfile << "\nparsed: ${pageFile.name}"
                 def pageContext = parsed.metadata
-                def mergedContext = context + pageContext
+                def mergedContext = config + pageContext // Groovy's map addition is great for this
 
-                // If .md, convert content to HTML
-                def contentIsMarkdown = pageFile.name.endsWith(".md")
-                logfile << "\ncontent is markdown: ${contentIsMarkdown}"
-                def bodyContent = contentIsMarkdown
-                        ? MarkdownParser.toHtml(parsed.content)
-                        : parsed.content
-
-                // Render content with Handlebars
+                def bodyContent = pageFile.name.endsWith(".md") ? MarkdownParser.toHtml(parsed.content) : parsed.content
                 def renderedContent = engine.compileInline(bodyContent).apply(mergedContext)
 
-                // Select layout
-                logfile << "\nlayout in page context: ${pageContext.layout}"
                 def layoutName = pageContext.layout ?: "default"
-                logfile << "\nlayout is: ${layoutName}"
                 def layoutFile = new File(layoutDir, "${layoutName}.hbs")
-                logfile << "\nlayout file is: ${layoutFile.name}"
+
                 if (!layoutFile.exists()) {
-                    logfile << "\nlayout was not found: ${layoutFile.path}"
-                    throw new IllegalStateException("Layout not found: ${layoutFile}")
+                    throw new GradleException("Layout not found: ${layoutFile.path} for page ${pageFile.name}")
                 }
-                logfile << "\ncompiling layout: ${layoutFile.name}"
-                def layoutTemplate = engine.compileInline(layoutFile.text)
-                logfile << "\nfinal output being prepared"
+
+                def layoutTemplate = engine.compile(layoutFile.path - layoutDir.path - File.separator)
                 def finalOutput = layoutTemplate.apply(mergedContext + [content: renderedContent])
-                logfile << "\npreparing output file"
+
                 def outFile = new File(outputRoot, pageFile.name.replaceAll(/\.(html|md)$/, '.html'))
-                logfile << "\noutput file: ${outFile.name}"
                 outFile.parentFile.mkdirs()
                 outFile.text = finalOutput
-                logfile << "\nGenerated page: ${outFile.name} (layout: ${layoutName})"
-                println "Generated page: ${outFile.name} (layout: ${layoutName})"
+                logger.info("Generated page: {} (layout: {})", outFile.name, layoutName)
+            } catch (Exception e) {
+                throw new GradleException("Failed to generate page from ${pageFile.name}", e)
             }
         }
+    }
 
-        // --- Process assets ---
-        if (assetsDir.exists()) {
-            logfile << "\nProcessing assets in: ${assetsDir}"
-            def destAssets = new File(outputRoot, "assets")
+    /**
+     * Copies and processes all asset files.
+     */
+    private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, Handlebars engine) {
+        def assetsDir = new File(sourceRoot, config.paths?.assets ?: "assets")
+        if (!assetsDir.exists()) return
 
-            assetsDir.eachFileRecurse { file ->
-                if (file.isFile()) {
-                    def relPath = file.absolutePath - assetsDir.absolutePath
-                    def targetFile = new File(destAssets, relPath)
+        logger.lifecycle("Processing assets from: {}", assetsDir)
+        def destAssets = new File(outputRoot, "assets")
 
-                    def rendered = engine.compileInline(file.text).apply(context)
-
-                    if (file.name.endsWith(".scss") || file.name.endsWith(".sass")) {
-                        def cssOut = new File(targetFile.parent, file.name.replaceAll(/\.s[ac]ss$/, '.css'))
-                        compileSass(rendered, cssOut)
-                        println "Compiled SASS: ${file.name} → ${cssOut.name}"
-                    } else {
-                        targetFile.parentFile.mkdirs()
-                        targetFile.text = rendered
-                        println "Processed asset: ${targetFile.name}"
-                    }
+        project.copy {
+            from assetsDir
+            into destAssets
+            eachFile { details ->
+                // This allows using Handlebars variables inside any asset file (e.g., CSS, JS)
+                if (!details.file.name.toLowerCase().endsWith(".scss")) {
+                    def rendered = engine.compileInline(details.file.text).apply(config)
+                    details.file.text = rendered
                 }
             }
+            // Exclude SASS files from direct copy, as they will be compiled separately
+            exclude '**/*.scss', '**/*.sass'
+        }
+
+        // Now, find and compile SASS files
+        assetsDir.eachFileRecurse(FileType.FILES) { file ->
+            if (file.name.endsWith(".scss") || file.name.endsWith(".sass")) {
+                def relPath = assetsDir.toURI().relativize(file.toURI()).path
+                def cssOutFile = new File(destAssets, relPath.replaceAll(/\.s[ac]ss$/, '.css'))
+                compileSass(file, cssOutFile)
+                logger.info("Compiled SASS: {} -> {}", file.name, cssOutFile.name)
+            }
         }
     }
 
-    String compileSass(String sassText) {
+    /**
+     * Compiles a SASS/SCSS file to a CSS file.
+     */
+    private void compileSass(File inputFile, File outputFile) {
         def compiler = new Compiler()
         def options = new Options()
-
         try {
-            def output = compiler.compileString(sassText, options)
-            return output.css
-
-        } catch (CompilationException e) {
-            println "SASS compile error:\n${e.message}"
-            throw new RuntimeException("SASS compilation failed for ${outputFile.name}", e)
+            Output output = compiler.compileFile(inputFile.toURI(), outputFile.toURI(), options)
+            outputFile.parentFile.mkdirs()
+            outputFile.text = output.css
+        } catch (Exception e) {
+            throw new GradleException("SASS compilation failed for ${inputFile.name}", e)
         }
-    }
-
-    Map<String, Object> loadConfig() {
-        def configFile = new File(project.projectDir, 'config.grim')
-        def binding = new Binding([
-                outputDir : 'public',
-                siteTitle : 'Untitled Site'
-        ])
-
-        if (configFile.exists()) {
-            logger.lifecycle("Loading config from config.grim")
-            new GroovyShell(binding).evaluate(configFile)
-        } else {
-            logger.lifecycle("No config.grim found. Using default settings.")
-        }
-
-        return binding.variables
     }
 }
