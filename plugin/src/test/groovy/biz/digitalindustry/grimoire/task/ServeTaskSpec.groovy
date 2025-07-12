@@ -1,91 +1,150 @@
 package biz.digitalindustry.grimoire.task
 
-import org.gradle.api.Project
+import org.gradle.api.GradleException
 import org.gradle.testfixtures.ProjectBuilder
+import spock.lang.Shared
 import spock.lang.Specification
-import spock.lang.TempDir
 
-/**
- * Unit tests for the ServeTask.
- * Focuses on testing the configuration logic without starting a real server.
- */
+import java.io.IOException
+import java.net.ConnectException
+import java.net.Socket
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+
 class ServeTaskSpec extends Specification {
 
-    @TempDir
-    File testProjectDir // Spock will create and clean up this temporary directory
+    // Use a standard File object for a predictable, real directory
+    @Shared
+    private File testProjectDir
 
-    private Project project
+    // We need to hold references to stop them during cleanup
+    private Thread serverThread
     private ServeTask task
 
     def setup() {
-        // Create a fresh project and task for each test
-        project = ProjectBuilder.builder().withProjectDir(testProjectDir).build()
-        // Register the task type so we can create an instance
-        task = project.tasks.create("grim-serve", ServeTask)
+        // Define a predictable directory at the project root for the test.
+        def projectRoot = new File(".").getCanonicalFile()
+        testProjectDir = new File(projectRoot, "grimoire-serve-test")
+
+        // --- Robust Cleanup & Setup ---
+        // Before each test, delete the directory if it exists to ensure a clean slate.
+        if (testProjectDir.exists()) {
+            assert testProjectDir.deleteDir()
+        }
+        // Create a fresh, empty directory for the test run.
+        assert testProjectDir.mkdirs()
     }
 
-    def "should resolve port from config file when specified"() {
-        given: "A config file that specifies a server port"
+    def cleanup() {
+        // After each test, ensure the server is stopped and the thread is cleaned up.
+        task?.stopServer()
+        serverThread?.interrupt()
+    }
+
+    def cleanupSpec() {
+        // After all tests in this class have run, perform a final cleanup of the directory.
+        if (testProjectDir != null && testProjectDir.exists()) {
+            testProjectDir.deleteDir()
+        }
+    }
+
+    def "serves content and respects port from config.grim"() {
+        given: "A project with a config file specifying a custom port"
+        // Use the real directory created in setup()
+        def project = ProjectBuilder.builder().withProjectDir(testProjectDir).build()
+        def publicDir = new File(testProjectDir, "public")
         def configFile = new File(testProjectDir, "config.grim")
-        configFile.text = """
-            server {
-                port = 9999
+        int testPort = 9090
+
+        configFile.text = "server { port = ${testPort} }"
+        copyPath(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
+
+        and: "The ServeTask is configured"
+        task = project.tasks.create("testServe", ServeTask)
+        task.webRootDir.set(publicDir)
+        task.configFile.set(configFile)
+
+        when: "The serve task is run in a background thread"
+        serverThread = new Thread({ task.serve() })
+        serverThread.start()
+
+        waitForServer(testPort)
+
+        and: "HTTP requests are made"
+        def rootContent = new URL("http://localhost:${testPort}/").text
+        def cssContent = new URL("http://localhost:${testPort}/assets/style.css").text
+
+        then: "The content is served correctly"
+        rootContent.contains("<h1>Welcome to Grimoire!</h1>")
+        cssContent.contains("font-family: sans-serif;")
+    }
+
+    def "serves a 404 for a non-existent file"() {
+        given: "A running server"
+        def project = ProjectBuilder.builder().withProjectDir(testProjectDir).build()
+        def publicDir = new File(testProjectDir, "public")
+        def configFile = new File(testProjectDir, "config.grim")
+        int defaultPort = 8080
+
+        copyPath(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
+
+        task = project.tasks.create("testServe", ServeTask)
+        task.webRootDir.set(publicDir)
+        task.configFile.set(configFile)
+
+        serverThread = new Thread({ task.serve() })
+        serverThread.start()
+
+        waitForServer(defaultPort)
+
+        when: "A request is made to a file that does not exist"
+        def connection = new URL("http://localhost:${defaultPort}/no-such-file.html").openConnection()
+
+        then: "The server responds with a 404 Not Found status code"
+        connection.responseCode == 404
+    }
+
+    /**
+     * Polls the specified port until it is open or a timeout is reached.
+     * This is a robust replacement for Thread.sleep() when testing servers.
+     */
+    private void waitForServer(int port, int timeoutMillis = 3000) {
+        long startTime = System.currentTimeMillis()
+        boolean connected = false
+        Exception lastException = null
+
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            try {
+                new Socket("localhost", port).withCloseable {
+                    connected = true
+                }
+                break // Exit the loop on successful connection
+            } catch (ConnectException e) {
+                lastException = e
+                // Port not open yet, wait a bit and retry.
+                Thread.sleep(100)
             }
-        """
-        task.configFile.set(configFile)
+        }
 
-        when: "The configuration is parsed and the port is resolved"
-        def config = task.parseConfig()
-        def resolvedPort = task.resolvePort(config)
-
-        then: "The port from the config file is used"
-        resolvedPort == 9999
+        if (!connected) {
+            throw new RuntimeException("Server on port $port did not start within ${timeoutMillis}ms.", lastException)
+        }
     }
 
-    def "should fall back to default port when not specified in config"() {
-        given: "A config file that does NOT specify a server port"
-        def configFile = new File(testProjectDir, "config.grim")
-        configFile.text = """
-            site {
-                title = "My Test Site"
+    private void copyPath(java.nio.file.Path sourceRoot, java.nio.file.Path targetRoot) {
+        try {
+            Files.walk(sourceRoot).forEach { sourcePath ->
+                def targetPath = targetRoot.resolve(sourceRoot.relativize(sourcePath).toString())
+                if (Files.isDirectory(sourcePath)) {
+                    Files.createDirectories(targetPath)
+                } else {
+                    Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
+                }
             }
-        """
-        task.configFile.set(configFile)
-
-        when: "The configuration is parsed and the port is resolved"
-        def config = task.parseConfig()
-        def resolvedPort = task.resolvePort(config)
-
-        then: "The task's default port (8080) is used"
-        resolvedPort == 8080
-    }
-
-    def "should fall back to default port for an empty config file"() {
-        given: "An empty config file"
-        def configFile = new File(testProjectDir, "config.grim")
-        configFile.text = "" // Empty
-        task.configFile.set(configFile)
-
-        when: "The configuration is parsed and the port is resolved"
-        def config = task.parseConfig()
-        def resolvedPort = task.resolvePort(config)
-
-        then: "The task's default port (8080) is used"
-        resolvedPort == 8080
-    }
-
-    def "should fall back to default port when config file does not exist"() {
-        given: "A path to a config file that does not exist"
-        def configFile = new File(testProjectDir, "non-existent-config.grim")
-        // We ensure it doesn't exist
-        assert !configFile.exists()
-        task.configFile.set(configFile)
-
-        when: "The configuration is parsed and the port is resolved"
-        def config = task.parseConfig()
-        def resolvedPort = task.resolvePort(config)
-
-        then: "The task's default port (8080) is used"
-        resolvedPort == 8080
+        } catch (IOException e) {
+            throw new GradleException("Failed to copy test resource: ${e.message}", e)
+        }
     }
 }

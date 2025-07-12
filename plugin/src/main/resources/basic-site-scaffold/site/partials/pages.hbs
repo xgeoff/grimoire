@@ -1,0 +1,13 @@
+{{!-- pages.hbs --}}
+{{#if (eq type "directory")}}
+    <li>
+        <span>{{name}}</span>
+        <ul>
+            {{#each children}}
+                {{> pages this }}
+            {{/each}}
+        </ul>
+    </li>
+{{else}}
+    <li><a href="/{{path}}">{{name}}</a></li>
+{{/if}}

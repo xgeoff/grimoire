@@ -1,5 +1,6 @@
 package biz.digitalindustry.grimoire.task
 
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import groovy.util.ConfigObject
 import org.gradle.api.DefaultTask
@@ -11,6 +12,7 @@ import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.TaskAction
 
+import java.net.InetSocketAddress
 import java.nio.file.Files
 
 abstract class ServeTask extends DefaultTask {
@@ -24,25 +26,26 @@ abstract class ServeTask extends DefaultTask {
     @Input
     abstract Property<Integer> getPort()
 
+    private HttpServer server
+
     ServeTask() {
         port.convention(8080)
     }
 
     @TaskAction
     void serve() {
-        // 1. The action now delegates to testable logic methods
         def config = parseConfig()
         def serverPort = resolvePort(config)
         def rootDir = webRootDir.get().asFile
 
-        // 2. Side-effects (server creation, blocking) remain here
-        def server = createAndConfigureServer(serverPort, rootDir)
+        this.server = createAndConfigureServer(serverPort, rootDir)
         server.start()
 
         logger.lifecycle("Grimoire server started on http://localhost:${serverPort}")
         logger.lifecycle("Serving files from: ${rootDir.absolutePath}")
         logger.lifecycle("Press Ctrl+C to stop the server.")
 
+        // This will block until the thread is interrupted or server is stopped
         Thread.currentThread().join()
     }
 
@@ -68,46 +71,63 @@ abstract class ServeTask extends DefaultTask {
         return config.server?.port ?: port.get()
     }
 
-    // --- Private helper methods for server implementation ---
-
     private HttpServer createAndConfigureServer(int serverPort, File rootDir) {
-        def server = HttpServer.create(new InetSocketAddress(serverPort), 0)
-        server.createContext("/", { exchange ->
-            exchange.with {
-                try {
-                    def requestPath = requestURI.path
-                    def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
-                    def requestedFile = new File(rootDir, effectivePath)
+        // --- FINAL FIX: Define sendError as a local closure to guarantee scope ---
+        def sendError = { HttpExchange exchange, int code, String message ->
+            // We can access the logger because it's in the outer scope of the method.
+            logger.warn("Sending error response: {} {}", code, message)
+            def response = message.bytes
+            exchange.sendResponseHeaders(code, response.length)
+            exchange.responseBody.withStream { it.write(response) }
+        }
 
-                    if (!requestedFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
-                        sendError(403, "Forbidden")
-                        return
-                    }
+        def handler = { HttpExchange exchange ->
+            try {
+                def requestPath = exchange.requestURI.path
+                def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
+                def requestedFile = new File(rootDir, effectivePath)
 
-                    if (requestedFile.isFile()) {
-                        def fileBytes = requestedFile.bytes
-                        def contentType = Files.probeContentType(requestedFile.toPath()) ?: 'application/octet-stream'
-                        responseHeaders.set("Content-Type", contentType)
-                        sendResponseHeaders(200, fileBytes.length)
-                        responseBody.withStream { it.write(fileBytes) }
-                    } else {
-                        sendError(404, "Not Found: ${requestPath}")
-                    }
-                } catch (Exception e) {
-                    logger.error("Error handling request", e)
-                    sendError(500, "Internal Server Error")
-                } finally {
-                    close()
+                if (!requestedFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
+                    sendError(exchange, 403, "Forbidden") // Call the local closure
+                    return
                 }
+
+                if (requestedFile.isFile()) {
+                    def fileBytes = requestedFile.bytes
+                    def contentType = Files.probeContentType(requestedFile.toPath()) ?: 'application/octet-stream'
+                    exchange.responseHeaders.set("Content-Type", contentType)
+                    exchange.sendResponseHeaders(200, fileBytes.length)
+                    exchange.responseBody.withStream { it.write(fileBytes) }
+                } else {
+                    sendError(exchange, 404, "Not Found: ${requestPath}") // Call the local closure
+                }
+            } catch (Exception e) {
+                logger.error("Error handling request", e)
+                sendError(exchange, 500, "Internal Server Error") // Call the local closure
+            } finally {
+                exchange.close()
             }
-        })
+        }
+
+        def server = HttpServer.create(new InetSocketAddress(serverPort), 0)
+        server.createContext("/", handler as com.sun.net.httpserver.HttpHandler)
         server.executor = null
         return server
     }
 
-    private void sendError(int code, String message) {
+    private void sendError(HttpExchange exchange, int code, String message) {
         def response = message.bytes
-        sendResponseHeaders(code, response.length)
-        responseBody.withStream { it.write(response) }
+        exchange.sendResponseHeaders(code, response.length)
+        exchange.responseBody.withStream { it.write(response) }
+    }
+
+    void stopServer() {
+        if (server != null) {
+            // FIX: Change the delay from 0 to 1.
+            // This gives the server up to 1 second to finish any active
+            // requests gracefully, which prevents the race condition.
+            server.stop(1)
+            logger.info("Server stopped by test.")
+        }
     }
 }

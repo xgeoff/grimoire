@@ -1,5 +1,6 @@
 import org.gradle.api.Project
 import org.gradle.testfixtures.ProjectBuilder
+import spock.lang.Shared
 import spock.lang.Specification
 import java.nio.file.Files
 import org.gradle.testkit.runner.GradleRunner
@@ -9,7 +10,7 @@ import java.nio.file.Paths;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 class SiteGenPluginSpec extends Specification {
-
+    @Shared
     Path testDir
     Project project = ProjectBuilder.builder().build()
 
@@ -76,6 +77,14 @@ class SiteGenPluginSpec extends Specification {
             } else {
                 Files.copy(path, dest, REPLACE_EXISTING)
             }
+        }
+    }
+
+    def cleanupSpec() {
+        File testProjectDir = testDir.toFile()
+        println "Cleaning up test directory: ${testProjectDir.absolutePath}"
+        if (testProjectDir != null && testProjectDir.exists()) {
+            testProjectDir.deleteDir()
         }
     }
 }

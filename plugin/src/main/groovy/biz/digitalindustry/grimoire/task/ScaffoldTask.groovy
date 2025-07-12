@@ -3,145 +3,141 @@ package biz.digitalindustry.grimoire.task
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
 
-import java.text.SimpleDateFormat
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Paths
 
 /**
- * Scaffolds a new content file (e.g., a post or a page) from a template.
- * This task is designed to be run from the command line with options.
+ * Scaffolds a new Grimoire site structure from a bundled template.
+ * This task is ideal for initializing a new project.
  *
  * Example Usage:
- *   gradle grim-scaffold --type=post --title="My First Post"
- *   gradle grim-scaffold --type=page --title="About Us"
+ *   // Initializes using the default 'basic' scaffold type
+ *   gradle grim-scaffold
+ *
+ *   // Explicitly choose a scaffold type and destination
+ *   gradle grim-scaffold --type=basic --dest=my-new-site
  */
 abstract class ScaffoldTask extends DefaultTask {
 
     /**
-     * The type of content to scaffold. Expected values: 'post', 'page'.
-     * This is configured via a command-line option.
+     * The destination directory where the site structure will be created.
+     * Defaults to the current project directory.
+     */
+    @OutputDirectory
+    @Option(option = "dest", description = "The destination directory for the new site.")
+    abstract DirectoryProperty getDestinationDir()
+
+    // --- NEW ---
+    /**
+     * The type of site to scaffold. Corresponds to a sub-directory in 'src/main/resources/scaffold'.
      */
     @Input
-    @Option(option = "type", description = "The type of content to create (e.g., 'post', 'page').")
+    @Option(option = "type", description = "The type of site to scaffold (e.g., 'basic').")
     abstract Property<String> getType()
 
-    /**
-     * The title for the new content file.
-     * This is configured via a command-line option.
-     */
-    @Input
-    @Option(option = "title", description = "The title of the new post or page.")
-    abstract Property<String> getTitle()
-
-    /**
-     * The main configuration file for the Grimoire site.
-     * Used to find the correct directories for pages and posts.
-     */
-    @InputFile
-    abstract RegularFileProperty getConfigFile()
-
-    /**
-     * The root source directory for the Grimoire project.
-     */
-    @InputDirectory
-    abstract DirectoryProperty getSourceDir()
+    ScaffoldTask() {
+        // Set default values for the properties
+        destinationDir.convention(project.layout.projectDirectory)
+        type.convention("basic") // Default to the 'basic' scaffold
+    }
 
     @TaskAction
     void scaffold() {
-        // 1. Validate command-line inputs
-        validateInputs()
+        def destDir = destinationDir.get().asFile
+        destDir.mkdirs() // Ensure the destination directory exists
 
-        // 2. Load configuration to find content paths
-        def config = parseConfig()
-        def scaffoldType = type.get().toLowerCase()
-        def contentTitle = title.get()
-
-        // 3. Determine the target directory based on the type
-        def targetDir = getTargetDirectory(config, scaffoldType)
-        targetDir.mkdirs() // Ensure the directory exists
-
-        // 4. Generate the filename and the full file path
-        def slug = slugify(contentTitle)
-        def datePrefix = (scaffoldType == 'post') ? new SimpleDateFormat("yyyy-MM-dd-").format(new Date()) : ""
-        def newFileName = "${datePrefix}${slug}.md"
-        def newFile = new File(targetDir, newFileName)
-
-        if (newFile.exists()) {
-            throw new GradleException("File already exists: ${newFile.path}. Aborting to prevent overwrite.")
+        // Prevent accidental data loss by checking if the directory is empty
+        if (destDir.list().length > 0) {
+            project.delete(destDir)
         }
 
-        // 5. Create the content from a template
-        def fileContent = createContentTemplate(contentTitle)
+        logger.lifecycle("Initializing new Grimoire site in '{}' using the '{}' scaffold...", destDir.absolutePath, type.get())
 
-        // 6. Write the new file
-        newFile.text = fileContent
+        copyScaffoldFromResources(destDir)
 
-        logger.lifecycle("✅ Successfully created ${scaffoldType}: ${newFile.path}")
+        logger.lifecycle("Site structure copied.")
+
+        modifyConfigFile(destDir)
+
+        logger.lifecycle("✅ Grimoire site initialized successfully.")
     }
 
-    /**
-     * Validates that required command-line options are provided.
-     */
-    private void validateInputs() {
-        if (!type.isPresent() || !title.isPresent()) {
-            throw new GradleException("Missing required options. Usage: gradle grim-scaffold --type=<type> --title=<title>")
+    // In: src/main/groovy/biz/digitalindustry/grimoire/task/ScaffoldTask.groovy
+
+// ... inside the ScaffoldTask class ...
+
+    private void copyScaffoldFromResources(File destDir) {
+        def scaffoldType = type.get()
+        def resourcePath = "/scaffold/${scaffoldType}"
+        def resourceUri = getClass().getResource(resourcePath)?.toURI()
+
+        if (resourceUri == null) {
+            throw new GradleException("Could not find the scaffold template for type '${scaffoldType}' at path: '${resourcePath}'. Ensure it's in 'src/main/resources/scaffold/${scaffoldType}'.")
         }
-        def scaffoldType = type.get().toLowerCase()
-        if (scaffoldType !in ['post', 'page']) {
-            throw new GradleException("Invalid type '${type.get()}'. Must be 'post' or 'page'.")
+
+        // --- THIS IS THE FIX ---
+        // This logic now correctly handles running from an IDE (a 'file:' URI)
+        // or from a packaged plugin (a 'jar:' URI).
+        if (resourceUri.scheme == 'jar') {
+            // Running from a JAR, so we use a virtual filesystem to look inside it
+            FileSystems.newFileSystem(resourceUri, [:]).withCloseable { fs ->
+                def sourcePath = fs.getPath(resourcePath)
+                copyPath(sourcePath, destDir.toPath())
+            }
+        } else {
+            // Running from the filesystem, so we can get the path directly
+            def sourcePath = Paths.get(resourceUri)
+            copyPath(sourcePath, destDir.toPath())
         }
     }
 
-    /**
-     * Parses the main config.grim file.
-     */
-    private def parseConfig() {
-        def configFile = this.configFile.get().asFile
-        return configFile.exists() ? new ConfigSlurper().parse(configFile.toURI().toURL()) : [:]
+/**
+ * Helper method to recursively copy a directory structure.
+ */
+    private void copyPath(java.nio.file.Path sourceRoot, java.nio.file.Path targetRoot) {
+        Files.walk(sourceRoot).forEach { source ->
+            def relativePath = sourceRoot.relativize(source).toString()
+            // Skip the root of the walk which has an empty relative path
+            if (relativePath) {
+                def destination = targetRoot.resolve(relativePath)
+                if (Files.isDirectory(source)) {
+                    Files.createDirectories(destination)
+                } else {
+                    Files.copy(source, destination)
+                }
+            }
+        }
     }
 
-    /**
-     * Determines the correct output directory based on the scaffold type and config.
-     */
-    private File getTargetDirectory(def config, String scaffoldType) {
-        def sourceRoot = sourceDir.get().asFile
-        // Use paths from config, with sensible defaults
-        def pathKey = (scaffoldType == 'post') ? 'posts' : 'pages'
-        def contentPath = config.paths?."${pathKey}" ?: pathKey // e.g., config.paths.posts or "posts"
-        return new File(sourceRoot, contentPath)
-    }
+    private void modifyConfigFile(File destDir) {
+        def configFile = new File(destDir, "config.grim")
+        if (!configFile.exists()) {
+            logger.warn("Could not find 'config.grim' in the scaffold to modify.")
+            return
+        }
 
-    /**
-     * Creates the default frontmatter and content for the new file.
-     */
-    private String createContentTemplate(String contentTitle) {
-        def creationDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").format(new Date())
-        return """\
-            ---
-            title: "${contentTitle}"
-            date: ${creationDate}
-            ---
+        //def publicDir = publicDirName.get()
+        //def configText = configFile.text
+        configFile << "\nsourceDir = \"${destDir.getName()}\""
 
-            Write your content here.
-            """.stripIndent()
-    }
+        // Use a regex to safely replace the outputDir property if it exists
 
-    /**
-     * Converts a string into a URL-friendly "slug".
-     * Example: "My First Post!" -> "my-first-post"
-     */
-    private String slugify(String text) {
-        return text.toLowerCase()
-                .replaceAll(/\s+/, '-')           // Replace spaces with -
-                .replaceAll(/[^\w\-]+/, '')      // Remove all non-word chars except -
-                .replaceAll(/\-\-+/, '-')         // Replace multiple - with single -
-                .replaceAll(/^-+/, '')           // Trim - from start of text
-                .replaceAll(/-+$/, '')           // Trim - from end of text
+        //if (configText.find(/outputDir\s*=/)) {
+        //    configText = configText.replaceAll(/(outputDir\s*=\s*).*/, "\$1\"${publicDir}\"")
+        //} else {
+            // Otherwise, append it to the end of the file
+        //    configText += "\noutputDir = \"${publicDir}\""
+        //}
+
+        //configFile.text = configText
+        logger.lifecycle("Updated 'config.grim' to set outputDir = '{}'", destDir)
     }
 }
