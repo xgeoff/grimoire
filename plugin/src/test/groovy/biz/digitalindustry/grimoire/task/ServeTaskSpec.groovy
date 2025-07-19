@@ -17,7 +17,6 @@ import biz.digitalindustry.grimoire.util.ResourceCopier
 class ServeTaskSpec extends Specification {
 
     // Use a standard File object for a predictable, real directory
-    @Shared
     private File testProjectDir
 
     // We need to hold references to stop them during cleanup
@@ -25,29 +24,30 @@ class ServeTaskSpec extends Specification {
     private ServeTask task
 
     def setup() {
-        // Define a predictable directory at the project root for the test.
+        // This setup logic is excellent and now correctly initializes the instance variable.
         def projectRoot = new File(".").getCanonicalFile()
         testProjectDir = new File(projectRoot, "grimoire-serve-test")
 
         // --- Robust Cleanup & Setup ---
-        // Before each test, delete the directory if it exists to ensure a clean slate.
         if (testProjectDir.exists()) {
             assert testProjectDir.deleteDir()
         }
-        // Create a fresh, empty directory for the test run.
         assert testProjectDir.mkdirs()
     }
 
     def cleanup() {
-        // After each test, ensure the server is stopped and the thread is cleaned up.
+        // This cleanup logic is correct and remains unchanged.
         task?.stopServer()
         serverThread?.interrupt()
     }
 
     def cleanupSpec() {
-        // After all tests in this class have run, perform a final cleanup of the directory.
-        if (testProjectDir != null && testProjectDir.exists()) {
-            testProjectDir.deleteDir()
+        // FIX: Since testProjectDir is no longer a shared field, we recalculate
+        // the path here to perform a final, safe cleanup after all tests are done.
+        def projectRoot = new File(".").getCanonicalFile()
+        def finalTestDir = new File(projectRoot, "grimoire-serve-test")
+        if (finalTestDir.exists()) {
+            finalTestDir.deleteDir()
         }
     }
 
