@@ -1,9 +1,0 @@
-title = "Grimoire Basic Site"
-baseUrl = "/public"
-sourceDir = "site"
-outputDir = "build/site"
-
-context = [
-    author: "Test Bot",
-    year: 2025
-]
