@@ -9,7 +9,7 @@ Whether you're building a personal blog or a project documentation site, Grimoir
 ### Project Structure
 
 A typical Grimoire project follows this structure:
-
+'''
 <project-root>/ 
 |-- pages/             ← HTML or Markdown input content
 |-- layouts/           ← Handlebars layouts
@@ -17,7 +17,7 @@ A typical Grimoire project follows this structure:
 |-- data/              ← Optional page data (YAML/JSON/Groovy)
 |-- assets/            ← CSS/JS/images to copy as-is
 |-- public/            ← Final rendered output (or configurable)
-
+'''
 
 | Component     | Technology                                                   |
 | ------------- |--------------------------------------------------------------|
