@@ -1,10 +1,12 @@
 package biz.digitalindustry.grimoire.task
 
+import biz.digitalindustry.grimoire.util.ResourceCopier
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
@@ -12,6 +14,7 @@ import org.gradle.api.tasks.options.Option
 
 import java.nio.file.FileSystems
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
@@ -27,6 +30,8 @@ import java.nio.file.Paths
  */
 abstract class ScaffoldTask extends DefaultTask {
 
+    @Internal // This is an input for logic, but not for up-to-date checks
+    abstract DirectoryProperty getProjectRootDir()
     /**
      * The destination directory where the site structure will be created.
      * Defaults to the current project directory.
@@ -52,92 +57,76 @@ abstract class ScaffoldTask extends DefaultTask {
     @TaskAction
     void scaffold() {
         def destDir = destinationDir.get().asFile
-        destDir.mkdirs() // Ensure the destination directory exists
+        destDir.mkdirs()
 
-        // Prevent accidental data loss by checking if the directory is empty
         if (destDir.list().length > 0) {
-            project.delete(destDir)
+            logger.warn("Destination directory '{}' is not empty. Cleaning it before scaffolding.", destDir.absolutePath)
+            if (!destDir.deleteDir()) {
+                throw new GradleException("Could not clean destination directory: ${destDir}")
+            }
+            destDir.mkdirs()
         }
 
         logger.lifecycle("Initializing new Grimoire site in '{}' using the '{}' scaffold...", destDir.absolutePath, type.get())
 
-        copyScaffoldFromResources(destDir)
+        // --- NEW, MORE ROBUST LOGIC ---
+        def scaffoldType = type.get()
+        // 1. Use a known file as an anchor to reliably find the scaffold root.
+        def anchorResourcePath = "/scaffold/${scaffoldType}"
+        def anchorResourceUrl = getClass().getResource(anchorResourcePath)
+        if (anchorResourceUrl == null) {
+            throw new GradleException("Could not find the scaffold template for type '${scaffoldType}'. " +
+                    "Ensure you have the correct type and that it exists in 'src/main/resources/scaffold'.")
+        }
+        def anchorUri = anchorResourceUrl?.toURI()
 
-        logger.lifecycle("Site structure copied.")
+        // 2. Handle both JAR and filesystem contexts to get the sourceRoot Path.
+        if ('jar' == anchorUri.scheme) {
+            // For a JAR, the URI is complex. We open a virtual filesystem to navigate it.
+            FileSystems.newFileSystem(anchorUri, [:]).withCloseable { fs ->
+                // Get the path to the anchor file *inside* the JAR's virtual filesystem.
+                def anchorPathInJar = fs.getPath(anchorResourcePath)
+                // The source root is the parent directory of the anchor file.
+                def sourceRoot = anchorPathInJar.parent
 
-        modifyConfigFile(destDir)
+                ResourceCopier.copy(sourceRoot, destinationDir.get().asFile().toPath())
+
+                copyAndModifyConfig(sourceRoot)
+            }
+        } else {
+            // For a direct filesystem, it's simpler.
+            def anchorPath = Paths.get(anchorUri)
+            // The source root is the parent directory of the anchor file.
+            //def sourceRoot = anchorPath.parent
+            ResourceCopier.copy(anchorPath, destinationDir.get().getAsFile().toPath())
+            //copyScaffoldContent(anchorResourcePath)
+            copyAndModifyConfig(anchorPath)
+        }
 
         logger.lifecycle("✅ Grimoire site initialized successfully.")
     }
 
-    // In: src/main/groovy/biz/digitalindustry/grimoire/task/ScaffoldTask.groovy
 
-// ... inside the ScaffoldTask class ...
+    /**
+     * Copies and modifies the config file from the scaffold's source path.
+     * This method now operates on reliable Path objects.
+     */
+    private void copyAndModifyConfig(Path anchorPath) {
+        def configFile = anchorPath.resolve("config.grim")
 
-    private void copyScaffoldFromResources(File destDir) {
-        def scaffoldType = type.get()
-        def resourcePath = "/scaffold/${scaffoldType}"
-        def resourceUri = getClass().getResource(resourcePath)?.toURI()
-
-        if (resourceUri == null) {
-            throw new GradleException("Could not find the scaffold template for type '${scaffoldType}' at path: '${resourcePath}'. Ensure it's in 'src/main/resources/scaffold/${scaffoldType}'.")
-        }
-
-        // --- THIS IS THE FIX ---
-        // This logic now correctly handles running from an IDE (a 'file:' URI)
-        // or from a packaged plugin (a 'jar:' URI).
-        if (resourceUri.scheme == 'jar') {
-            // Running from a JAR, so we use a virtual filesystem to look inside it
-            FileSystems.newFileSystem(resourceUri, [:]).withCloseable { fs ->
-                def sourcePath = fs.getPath(resourcePath)
-                copyPath(sourcePath, destDir.toPath())
-            }
-        } else {
-            // Running from the filesystem, so we can get the path directly
-            def sourcePath = Paths.get(resourceUri)
-            copyPath(sourcePath, destDir.toPath())
-        }
-    }
-
-/**
- * Helper method to recursively copy a directory structure.
- */
-    private void copyPath(java.nio.file.Path sourceRoot, java.nio.file.Path targetRoot) {
-        Files.walk(sourceRoot).forEach { source ->
-            def relativePath = sourceRoot.relativize(source).toString()
-            // Skip the root of the walk which has an empty relative path
-            if (relativePath) {
-                def destination = targetRoot.resolve(relativePath)
-                if (Files.isDirectory(source)) {
-                    Files.createDirectories(destination)
-                } else {
-                    Files.copy(source, destination)
-                }
-            }
-        }
-    }
-
-    private void modifyConfigFile(File destDir) {
-        def configFile = new File(destDir, "config.grim")
-        if (!configFile.exists()) {
-            logger.warn("Could not find 'config.grim' in the scaffold to modify.")
+        if (!Files.exists(configFile)) {
+            logger.warn("No 'config.grim' found in scaffold. Skipping.")
             return
         }
 
-        //def publicDir = publicDirName.get()
-        //def configText = configFile.text
-        configFile << "\nsourceDir = \"${destDir.getName()}\""
+        def destConfigFile = new File(projectRootDir.get().asFile, "config.grim")
+        // Read the text content from the source path and write to the destination file.
+        destConfigFile.text = Files.readString(configFile)
 
-        // Use a regex to safely replace the outputDir property if it exists
+        // Now, append the sourceDir configuration.
+        def destDirName = destinationDir.get().asFile.name
+        destConfigFile << "\nsourceDir = \"${destDirName}\""
 
-        //if (configText.find(/outputDir\s*=/)) {
-        //    configText = configText.replaceAll(/(outputDir\s*=\s*).*/, "\$1\"${publicDir}\"")
-        //} else {
-            // Otherwise, append it to the end of the file
-        //    configText += "\noutputDir = \"${publicDir}\""
-        //}
-
-        //configFile.text = configText
-        logger.lifecycle("Updated 'config.grim' to set outputDir = '{}'", destDir)
+        logger.lifecycle("Created 'config.grim' at project root and set sourceDir = '{}'", destDirName)
     }
 }

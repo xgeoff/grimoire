@@ -7,7 +7,7 @@ class FrontmatterParserSpec extends Specification {
 
     def "parses valid frontmatter with content"() {
         given:
-        def fixture = new File("src/test/resources/test-projects/basic-site/site/pages/markdown-support.md")
+        def fixture = new File("src/test/resources/test-projects/basic-site/pages/markdown-support.md")
 
         when:
         def result = FrontmatterParser.parse(fixture)
@@ -20,7 +20,7 @@ class FrontmatterParserSpec extends Specification {
 
     def "ignores missing frontmatter and returns full content"() {
         given:
-        def fixture = new File("src/test/resources/test-projects/basic-site/site/pages/index.html")
+        def fixture = new File("src/test/resources/test-projects/basic-site/pages/index.html")
 
         when:
         def result = FrontmatterParser.parse(fixture)

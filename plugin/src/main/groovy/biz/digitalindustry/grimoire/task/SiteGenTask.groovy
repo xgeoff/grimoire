@@ -5,7 +5,6 @@ import biz.digitalindustry.grimoire.parser.MarkdownParser
 import com.github.jknack.handlebars.Handlebars
 import com.github.jknack.handlebars.io.CompositeTemplateLoader
 import com.github.jknack.handlebars.io.FileTemplateLoader
-import groovy.util.ConfigObject
 import groovy.io.FileType
 import io.bit3.jsass.Compiler
 import io.bit3.jsass.Options
@@ -66,7 +65,12 @@ abstract class SiteGenTask extends DefaultTask {
     private void cleanOutputDir() {
         def outputRoot = outputDir.get().asFile
         if (outputRoot.exists()) {
-            project.delete(outputRoot)
+            // FIX: Replace the project.delete() call with a standard file operation.
+            // The deleteDir() method is a Groovy extension that recursively deletes.
+            // This makes the task compatible with Gradle's configuration caching.
+            if (!outputRoot.deleteDir()) {
+                throw new GradleException("Could not clean output directory: ${outputRoot}")
+            }
         }
         outputRoot.mkdirs()
         logger.info("Cleaned output directory: {}", outputRoot)
@@ -165,8 +169,11 @@ abstract class SiteGenTask extends DefaultTask {
         }
     }
 
+    // In: src/main/groovy/biz/digitalindustry/grimoire/task/SiteGenTask.groovy
+
     /**
      * Copies and processes all asset files.
+     * This version is refactored to be compatible with Gradle's configuration cache.
      */
     private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, Handlebars engine) {
         def assetsDir = new File(sourceRoot, config.paths?.assets ?: "assets")
@@ -175,27 +182,27 @@ abstract class SiteGenTask extends DefaultTask {
         logger.lifecycle("Processing assets from: {}", assetsDir)
         def destAssets = new File(outputRoot, "assets")
 
-        project.copy {
-            from assetsDir
-            into destAssets
-            eachFile { details ->
-                // This allows using Handlebars variables inside any asset file (e.g., CSS, JS)
-                if (!details.file.name.toLowerCase().endsWith(".scss")) {
-                    def rendered = engine.compileInline(details.file.text).apply(config)
-                    details.file.text = rendered
-                }
-            }
-            // Exclude SASS files from direct copy, as they will be compiled separately
-            exclude '**/*.scss', '**/*.sass'
-        }
-
-        // Now, find and compile SASS files
+        // This manual traversal replaces the non-cache-safe `project.copy` call.
         assetsDir.eachFileRecurse(FileType.FILES) { file ->
+            // Calculate the relative path to preserve the directory structure.
+            def relPath = assetsDir.toURI().relativize(file.toURI()).path
+
             if (file.name.endsWith(".scss") || file.name.endsWith(".sass")) {
-                def relPath = assetsDir.toURI().relativize(file.toURI()).path
+                // Handle SASS compilation.
                 def cssOutFile = new File(destAssets, relPath.replaceAll(/\.s[ac]ss$/, '.css'))
                 compileSass(file, cssOutFile)
                 logger.info("Compiled SASS: {} -> {}", file.name, cssOutFile.name)
+            } else {
+                // Handle all other assets (copy and apply Handlebars templating).
+                def outFile = new File(destAssets, relPath)
+                outFile.parentFile.mkdirs()
+
+                try {
+                    def rendered = engine.compileInline(file.text).apply(config)
+                    outFile.text = rendered
+                } catch (Exception e) {
+                    throw new GradleException("Failed to template asset file ${file.name}", e)
+                }
             }
         }
     }

@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import biz.digitalindustry.grimoire.util.ResourceCopier
 
 class ServeTaskSpec extends Specification {
 
@@ -58,13 +59,14 @@ class ServeTaskSpec extends Specification {
         def configFile = new File(testProjectDir, "config.grim")
         int testPort = 9090
 
-        configFile.text = "server { port = ${testPort} }"
-        copyPath(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
+        configFile.text = """
+baseUrl="/"
+server { port = ${testPort} }
+"""
+        ResourceCopier.copy(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
 
         and: "The ServeTask is configured"
         task = project.tasks.create("testServe", ServeTask)
-        task.webRootDir.set(publicDir)
-        task.configFile.set(configFile)
 
         when: "The serve task is run in a background thread"
         serverThread = new Thread({ task.serve() })
@@ -86,21 +88,24 @@ class ServeTaskSpec extends Specification {
         def project = ProjectBuilder.builder().withProjectDir(testProjectDir).build()
         def publicDir = new File(testProjectDir, "public")
         def configFile = new File(testProjectDir, "config.grim")
-        int defaultPort = 8080
+        int testPort = 8080
 
-        copyPath(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
+        configFile.text = """
+baseUrl="/"
+server { port = ${testPort} }
+"""
+
+        ResourceCopier.copy(Paths.get("src/test/resources/sample-sites/basic/public"), publicDir.toPath())
 
         task = project.tasks.create("testServe", ServeTask)
-        task.webRootDir.set(publicDir)
-        task.configFile.set(configFile)
 
         serverThread = new Thread({ task.serve() })
         serverThread.start()
 
-        waitForServer(defaultPort)
+        waitForServer(testPort)
 
         when: "A request is made to a file that does not exist"
-        def connection = new URL("http://localhost:${defaultPort}/no-such-file.html").openConnection()
+        def connection = new URL("http://localhost:${testPort}/no-such-file.html").openConnection()
 
         then: "The server responds with a 404 Not Found status code"
         connection.responseCode == 404
@@ -132,7 +137,7 @@ class ServeTaskSpec extends Specification {
             throw new RuntimeException("Server on port $port did not start within ${timeoutMillis}ms.", lastException)
         }
     }
-
+    /*
     private void copyPath(java.nio.file.Path sourceRoot, java.nio.file.Path targetRoot) {
         try {
             Files.walk(sourceRoot).forEach { sourcePath ->
@@ -146,5 +151,5 @@ class ServeTaskSpec extends Specification {
         } catch (IOException e) {
             throw new GradleException("Failed to copy test resource: ${e.message}", e)
         }
-    }
+    }*/
 }

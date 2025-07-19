@@ -7,7 +7,7 @@ class MarkdownParserSpec extends Specification {
 
     def "converts markdown to HTML"() {
         given:
-        def fixture = new File("src/test/resources/test-projects/basic-site/site/pages/markdown-support.md")
+        def fixture = new File("src/test/resources/test-projects/basic-site/pages/markdown-support.md")
         def rawMarkdown = FrontmatterParser.parse(fixture).content
 
         when:

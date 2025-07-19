@@ -4,10 +4,9 @@ import spock.lang.Shared
 import spock.lang.Specification
 import java.nio.file.Files
 import org.gradle.testkit.runner.GradleRunner
-
+import biz.digitalindustry.grimoire.util.ResourceCopier
 import java.nio.file.Path
-import java.nio.file.Paths;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.nio.file.Paths
 
 class SiteGenPluginSpec extends Specification {
     @Shared
@@ -22,8 +21,8 @@ class SiteGenPluginSpec extends Specification {
         testDir.toFile().delete()
         Files.createDirectories(testDir)
         //testDir = Files.createDirectory(project.getProjectDir().toPath(),"grimoire-test-site")
-
-        copyProject(fixture, testDir)
+        ResourceCopier.copy(fixture, testDir)
+        //copyProject(fixture, testDir)
     }
 
     def "plugin registers grim task"() {
@@ -52,7 +51,7 @@ class SiteGenPluginSpec extends Specification {
         when: "The grim-generate task is run"
         def result = GradleRunner.create()
                 .withProjectDir(testDir.toFile())
-                .withArguments("grim-generate", "--stacktrace")
+                .withArguments("grim-gen", "--stacktrace")
                 .withPluginClasspath()
                 .build()
 
@@ -66,18 +65,6 @@ class SiteGenPluginSpec extends Specification {
 
         // Check the content
         assert outputFile.text.contains("Test-Bot")
-    }
-
-    void copyProject(Path source, Path target) {
-        Files.walk(source).forEach { path ->
-            Path relative = source.relativize(path)
-            Path dest = target.resolve(relative)
-            if (Files.isDirectory(path)) {
-                Files.createDirectories(dest)
-            } else {
-                Files.copy(path, dest, REPLACE_EXISTING)
-            }
-        }
     }
 
     def cleanupSpec() {

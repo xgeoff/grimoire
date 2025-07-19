@@ -4,12 +4,14 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import groovy.util.ConfigObject
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
 import java.net.InetSocketAddress
@@ -17,78 +19,34 @@ import java.nio.file.Files
 
 abstract class ServeTask extends DefaultTask {
 
-    @InputDirectory
-    abstract DirectoryProperty getWebRootDir()
-
-    @InputFile
-    abstract RegularFileProperty getConfigFile()
-
-    @Input
-    abstract Property<Integer> getPort()
-
     private HttpServer server
-
-    ServeTask() {
-        port.convention(8080)
-    }
 
     @TaskAction
     void serve() {
-        def config = parseConfig()
-        def serverPort = resolvePort(config)
-        def rootDir = webRootDir.get().asFile
+        def configFile = new File(project.layout.projectDirectory.asFile, "config.grim")
+        ConfigObject config = new ConfigSlurper().parse(configFile.toURI().toURL())
+        // This must be final so the closure can safely capture it.
+        final File webRootDir = config.outputDir ? new File(project.layout.projectDirectory.asFile, config.outputDir) : new File(project.layout.projectDirectory.asFile, "public")
 
-        this.server = createAndConfigureServer(serverPort, rootDir)
-        server.start()
+        if (!webRootDir.exists() || !webRootDir.isDirectory())
+            throw new GradleException("Web root directory to serve not found or not a directory: ${webRootDir.absolutePath}. Please run 'grim-gen' first.")
 
-        logger.lifecycle("Grimoire server started on http://localhost:${serverPort}")
-        logger.lifecycle("Serving files from: ${rootDir.absolutePath}")
-        logger.lifecycle("Press Ctrl+C to stop the server.")
-
-        // This will block until the thread is interrupted or server is stopped
-        Thread.currentThread().join()
-    }
-
-    /**
-     * Parses the configuration file. Visible for testing.
-     * @return A ConfigObject representing the parsed file.
-     */
-    ConfigObject parseConfig() {
-        def configFile = this.configFile.get().asFile
-        if (!configFile.exists() || configFile.length() == 0) {
-            return new ConfigObject() // Return empty config for non-existent/empty files
-        }
-        return new ConfigSlurper().parse(configFile.toURI().toURL())
-    }
-
-    /**
-     * Resolves the port to use, prioritizing the config file over the default. Visible for testing.
-     * @param config The parsed ConfigObject.
-     * @return The resolved port number.
-     */
-    int resolvePort(ConfigObject config) {
-        // Use the port from config.grim, or the task's default if not specified
-        return config.server?.port ?: port.get()
-    }
-
-    private HttpServer createAndConfigureServer(int serverPort, File rootDir) {
-        // --- FINAL FIX: Define sendError as a local closure to guarantee scope ---
         def sendError = { HttpExchange exchange, int code, String message ->
-            // We can access the logger because it's in the outer scope of the method.
-            logger.warn("Sending error response: {} {}", code, message)
             def response = message.bytes
             exchange.sendResponseHeaders(code, response.length)
             exchange.responseBody.withStream { it.write(response) }
         }
 
+        // Define handler closure inside the method to correctly capture the web root directory.
         def handler = { HttpExchange exchange ->
             try {
+
                 def requestPath = exchange.requestURI.path
                 def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
-                def requestedFile = new File(rootDir, effectivePath)
+                def requestedFile = new File(webRootDir, effectivePath)
 
-                if (!requestedFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
-                    sendError(exchange, 403, "Forbidden") // Call the local closure
+                if (!requestedFile.canonicalPath.startsWith(webRootDir.canonicalPath)) {
+                    sendError(exchange, 403, "Forbidden")
                     return
                 }
 
@@ -99,26 +57,29 @@ abstract class ServeTask extends DefaultTask {
                     exchange.sendResponseHeaders(200, fileBytes.length)
                     exchange.responseBody.withStream { it.write(fileBytes) }
                 } else {
-                    sendError(exchange, 404, "Not Found: ${requestPath}") // Call the local closure
+                    sendError(exchange, 404, "Not Found: ${requestPath}")
                 }
             } catch (Exception e) {
                 logger.error("Error handling request", e)
-                sendError(exchange, 500, "Internal Server Error") // Call the local closure
+                sendError(exchange, 500, "Internal Server Error")
             } finally {
                 exchange.close()
             }
         }
 
-        def server = HttpServer.create(new InetSocketAddress(serverPort), 0)
-        server.createContext("/", handler as com.sun.net.httpserver.HttpHandler)
+        def baseUrl = config.baseUrl ?: "/"
+        def port = config.server?.port ?: 8080
+        this.server = HttpServer.create(new InetSocketAddress(port), 0)
+        server.createContext(baseUrl, handler as com.sun.net.httpserver.HttpHandler)
         server.executor = null
-        return server
-    }
+        server.start()
 
-    private void sendError(HttpExchange exchange, int code, String message) {
-        def response = message.bytes
-        exchange.sendResponseHeaders(code, response.length)
-        exchange.responseBody.withStream { it.write(response) }
+        logger.lifecycle("Grimoire server started on http://localhost:${port}")
+        logger.lifecycle("Serving files from: ${webRootDir.absolutePath}")
+        logger.lifecycle("Press Ctrl+C to stop the server.")
+
+        // This will block until the thread is interrupted or server is stopped
+        Thread.currentThread().join()
     }
 
     void stopServer() {

@@ -36,7 +36,7 @@ gradlePlugin {
     plugins {
         grim {
             id = 'biz.digitalindustry.grimoire'
-            implementationClass = 'biz.digitalindustry.grimoire.SiteGenPlugin'
+            implementationClass = 'biz.digitalindustry.grimoire.GrimoirePlugin'
         }
     }
 }

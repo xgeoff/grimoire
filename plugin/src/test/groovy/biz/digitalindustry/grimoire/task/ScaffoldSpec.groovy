@@ -36,7 +36,7 @@ class ScaffoldSpec extends Specification {
         when: "The grim-scaffold task is run with a destination"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
-                .withArguments("grim-scaffold", "--dest=${targetDirName}", "--stacktrace")
+                .withArguments("grim-init", "--dest=${targetDirName}", "--stacktrace")
                 .withPluginClasspath()
                 .build()
 
@@ -44,7 +44,7 @@ class ScaffoldSpec extends Specification {
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
 
-        def configFile = new File(scaffoldRoot, "config.grim")
+        def configFile = new File(testProjectDir, "config.grim")
         assert configFile.exists()
         assert new File(scaffoldRoot, "pages/index.html").exists()
         assert new File(scaffoldRoot, "layouts/default.hbs").exists()
@@ -54,31 +54,13 @@ class ScaffoldSpec extends Specification {
         assert configFile.text.contains("sourceDir = \"${targetDirName}")
     }
 
-    def "scaffolds site with custom output directory name"() {
-        given: "A target directory and a custom output name"
-        def targetDirName = "my-dist-site"
-        //def outputDirName = "dist"
-
-        when: "The grim-scaffold task is run with --dest and arguments"
-        def result = GradleRunner.create()
-                .withProjectDir(testProjectDir)
-                .withArguments("grim-scaffold", "--dest=${targetDirName}", "--stacktrace")
-                .withPluginClasspath()
-                .build()
-
-        then: "The config file is correctly configured for the custom source directory"
-        def scaffoldRoot = new File(testProjectDir, targetDirName)
-        def configFile = new File(scaffoldRoot, "config.grim")
-        assert configFile.exists()
-        assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
-    }
 
     def "fails when an invalid scaffold type is provided"() {
         when: "The grim-scaffold task is run with a non-existent type"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
         // We must provide a --dest so the task doesn't fail on the "not empty" check first
-                .withArguments("grim-scaffold", "--dest=test-dest", "--type=non-existent", "--stacktrace")
+                .withArguments("grim-init", "--dest=test-dest", "--type=non-existent", "--stacktrace")
                 .withPluginClasspath()
                 .buildAndFail()
 
