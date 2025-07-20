@@ -137,6 +137,7 @@ abstract class SiteGenTask extends DefaultTask {
 
         if (!pagesDir.exists()) return
 
+        config.put("pagesDir", pagesDir)
         logger.lifecycle("Processing pages from: {}", pagesDir)
         pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
             try {
