@@ -45,37 +45,17 @@ abstract class ScaffoldTask extends DefaultTask {
     @Option(option = "type", description = "The type of site to scaffold (e.g., 'basic').")
     abstract Property<String> getType()
 
-    /**
-     * When {@code true}, the task will scaffold into a destination directory even if it already
-     * contains files. Existing files are left untouched, but conflicts will still cause failures.
-     */
-    @Input
-    @Option(option = "force", description = "Force initialization even if the destination directory is not empty.")
-    abstract Property<Boolean> getForce()
-
     ScaffoldTask() {
         // Set default values for the properties
         type.convention("basic") // Default to the 'basic' scaffold
         destinationDir.convention(project.layout.projectDirectory)
-        force.convention(false)
     }
 
     @TaskAction
     void scaffold() {
         def destDir = destinationDir.get().asFile
-
         def destConfigFile = new File(projectRootDir.get().asFile, "config.grim")
-        if (destConfigFile.exists()) {
-            throw new GradleException("config.grim already exists at destination")
-        }
-
-        if (destDir.exists()) {
-            def allowed = ["build.gradle", "settings.gradle", ".gradle", "gradlew", "gradlew.bat"]
-            def existing = destDir.listFiles()?.findAll { !allowed.contains(it.name) }
-            if (existing && !force.get()) {
-                throw new GradleException("Destination directory '${destDir.absolutePath}' is not empty. Use --force to scaffold anyway.")
-            }
-        }
+        def writeConfig = !destConfigFile.exists()
 
         destDir.mkdirs()
 
@@ -103,13 +83,21 @@ abstract class ScaffoldTask extends DefaultTask {
 
                 ResourceCopier.copy(sourceRoot, destinationDir.get().asFile.toPath())
 
-                copyAndModifyConfig(sourceRoot)
+                if (writeConfig) {
+                    copyAndModifyConfig(sourceRoot)
+                } else {
+                    logger.lifecycle("'config.grim' already exists at project root; skipping.")
+                }
             }
         } else {
             // For a direct filesystem, it's simpler.
             def sourceRoot = Paths.get(anchorUri)
             ResourceCopier.copy(sourceRoot, destinationDir.get().getAsFile().toPath())
-            copyAndModifyConfig(sourceRoot)
+            if (writeConfig) {
+                copyAndModifyConfig(sourceRoot)
+            } else {
+                logger.lifecycle("'config.grim' already exists at project root; skipping.")
+            }
         }
 
         logger.lifecycle("✅ Grimoire site initialized successfully.")

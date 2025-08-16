@@ -71,50 +71,35 @@ class ScaffoldSpec extends Specification {
         assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
     }
 
-    def "fails when a scaffold file already exists"() {
+    def "skips existing scaffold files without overwriting"() {
         given: "An existing scaffold file"
         def pagesDir = new File(testProjectDir, "pages")
         pagesDir.mkdirs()
-        new File(pagesDir, "index.html") << "hello"
+        def existingFile = new File(pagesDir, "index.html")
+        existingFile << "hello"
 
-        when: "grim-init is run with --force to bypass non-empty check"
-        def result = GradleRunner.create()
-                .withProjectDir(testProjectDir)
-                .withArguments("grim-init", "--force", "--stacktrace")
-                .withPluginClasspath()
-                .buildAndFail()
-
-        then: "The build fails to avoid overwriting existing files"
-        result.output.contains("Cannot overwrite existing file")
-    }
-
-    def "fails in non-empty directory without force"() {
-        given: "An existing non-scaffold file in the destination"
-        def existing = new File(testProjectDir, "existing.txt")
-        existing.text = "original"
-
-        when: "grim-init is run without --force"
+        when: "grim-init is run"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
                 .withArguments("grim-init", "--stacktrace")
                 .withPluginClasspath()
-                .buildAndFail()
+                .build()
 
-        then: "The build fails and the original file remains untouched"
-        result.output.contains("not empty")
-        existing.text == "original"
-        !new File(testProjectDir, "pages").exists()
+        then: "The build succeeds and the existing file remains untouched"
+        existingFile.text == "hello"
+        new File(testProjectDir, "layouts/default.hbs").exists()
+        new File(testProjectDir, "assets/style.css").exists()
     }
 
-    def "scaffolds in non-empty directory with force"() {
+    def "scaffolds in non-empty directory preserving existing files"() {
         given: "An existing non-scaffold file in the destination"
         def existing = new File(testProjectDir, "existing.txt")
         existing.text = "original"
 
-        when: "grim-init is run with --force"
+        when: "grim-init is run"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
-                .withArguments("grim-init", "--force", "--stacktrace")
+                .withArguments("grim-init", "--stacktrace")
                 .withPluginClasspath()
                 .build()
 
