@@ -4,7 +4,6 @@ import org.gradle.api.GradleException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.io.IOException
-import java.nio.file.StandardCopyOption
 
 /**
  * A utility for recursively copying directory structures, designed to work
@@ -26,12 +25,13 @@ class ResourceCopier {
                 if (Files.isDirectory(sourcePath)) {
                     Files.createDirectories(targetPath)
                 } else {
-                    // Ensure the parent directory exists before copying the file.
-                    // This is crucial for a clean, atomic copy operation.
+                    if (Files.exists(targetPath)) {
+                        throw new GradleException("Cannot overwrite existing file: ${targetPath}")
+                    }
                     if (targetPath.parent != null) {
                         Files.createDirectories(targetPath.parent)
                     }
-                    Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
+                    Files.copy(sourcePath, targetPath)
                 }
             }
         } catch (IOException e) {

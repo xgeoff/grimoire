@@ -60,29 +60,30 @@ plugins {
 
 ### 2. Scaffold a New Site Project
 
-To scaffold a new project structure, run the following command in your terminal:
+To scaffold a new project structure in the current directory, run:
 
 ```bash
 ./gradlew grim-init
 ```
 
-This will generate a basic site structure under your project directory:
+This will generate a basic site structure alongside your existing files:
 
 ```
 <project-root>/
-├── site/
-│   ├── config.grim            # Groovy-based site configuration
-│   ├── pages/                 # Markdown or HTML page files
-│   ├── layouts/               # Handlebars layouts
-│   ├── partials/              # Optional Handlebars partials
-│   └── data/                  # Optional data in JSON/YAML/Groovy
+├── config.grim            # Groovy-based site configuration
+├── pages/                 # Markdown or HTML page files
+├── layouts/               # Handlebars layouts
+├── partials/              # Optional Handlebars partials
+└── data/                  # Optional data in JSON/YAML/Groovy
 ```
 
-You can also specify a custom root directory:
+Use `--dest` to scaffold into a specific subdirectory:
 
 ```bash
 ./gradlew grim-init --dest=my-docs
 ```
+
+The task will abort if any of the files it intends to create already exist, helping prevent accidental overwrites.
 
 ### 3. Build Your Site
 

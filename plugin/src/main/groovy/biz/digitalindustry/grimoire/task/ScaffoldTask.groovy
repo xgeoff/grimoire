@@ -7,7 +7,6 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
@@ -22,11 +21,11 @@ import java.nio.file.Paths
  * This task is ideal for initializing a new project.
  *
  * Example Usage:
- *   // Initializes using the default 'basic' scaffold type
- *   gradle grim-scaffold
+ *   // Initializes using the default 'basic' scaffold type in the current directory
+ *   gradle grim-init
  *
  *   // Explicitly choose a scaffold type and destination
- *   gradle grim-scaffold --type=basic --dest=my-new-site
+ *   gradle grim-init --type=basic --dest=my-new-site
  */
 abstract class ScaffoldTask extends DefaultTask {
 
@@ -34,13 +33,11 @@ abstract class ScaffoldTask extends DefaultTask {
     abstract DirectoryProperty getProjectRootDir()
     /**
      * The destination directory where the site structure will be created.
-     * Defaults to the current project directory.
      */
     @OutputDirectory
-    @Option(option = "dest", description = "The destination directory for the new site.")
+    @Option(option = "dest", description = "The destination directory for the new site (defaults to current directory).")
     abstract DirectoryProperty getDestinationDir()
 
-    // --- NEW ---
     /**
      * The type of site to scaffold. Corresponds to a sub-directory in 'src/main/resources/scaffold'.
      */
@@ -50,22 +47,20 @@ abstract class ScaffoldTask extends DefaultTask {
 
     ScaffoldTask() {
         // Set default values for the properties
-        destinationDir.convention(project.layout.projectDirectory)
         type.convention("basic") // Default to the 'basic' scaffold
+        destinationDir.convention(project.layout.projectDirectory)
     }
 
     @TaskAction
     void scaffold() {
         def destDir = destinationDir.get().asFile
-        destDir.mkdirs()
 
-        if (destDir.list().length > 0) {
-            logger.warn("Destination directory '{}' is not empty. Cleaning it before scaffolding.", destDir.absolutePath)
-            if (!destDir.deleteDir()) {
-                throw new GradleException("Could not clean destination directory: ${destDir}")
-            }
-            destDir.mkdirs()
+        def destConfigFile = new File(projectRootDir.get().asFile, "config.grim")
+        if (destConfigFile.exists()) {
+            throw new GradleException("config.grim already exists at destination")
         }
+
+        destDir.mkdirs()
 
         logger.lifecycle("Initializing new Grimoire site in '{}' using the '{}' scaffold...", destDir.absolutePath, type.get())
 
@@ -121,7 +116,12 @@ abstract class ScaffoldTask extends DefaultTask {
         destConfigFile.text = Files.readString(configFile)
 
         // Now, append the sourceDir configuration.
-        def destDirName = destinationDir.get().asFile.name
+        def rootPath = projectRootDir.get().asFile.toPath()
+        def destPath = destinationDir.get().asFile.toPath()
+        def destDirName = rootPath.relativize(destPath).toString()
+        if (destDirName.isEmpty()) {
+            destDirName = "."
+        }
         destConfigFile << "\nsourceDir = \"${destDirName}\""
 
         logger.lifecycle("Created 'config.grim' at project root and set sourceDir = '{}'", destDirName)
