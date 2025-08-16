@@ -1,4 +1,3 @@
-
 import org.gradle.testkit.runner.GradleRunner
 import spock.lang.Shared
 import spock.lang.Specification
@@ -29,7 +28,26 @@ class ScaffoldSpec extends Specification {
         """
     }
 
-    def "scaffolds site with default type into a specified directory"() {
+    def "scaffolds site into current directory by default"() {
+        when: "The grim-scaffold task is run without a destination"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then: "The scaffold structure is created in the project root"
+        new File(testProjectDir, "pages/index.html").exists()
+        new File(testProjectDir, "layouts/default.hbs").exists()
+        new File(testProjectDir, "assets/style.css").exists()
+
+        and: "The config file points to the current directory"
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
+        assert configFile.text.contains('sourceDir = "."')
+    }
+
+    def "scaffolds site into specified directory"() {
         given: "A target directory name"
         def targetDirName = "my-basic-site"
 
@@ -43,15 +61,31 @@ class ScaffoldSpec extends Specification {
         then: "The basic scaffold structure is created in the target subdirectory"
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
-
-        def configFile = new File(testProjectDir, "config.grim")
-        assert configFile.exists()
         assert new File(scaffoldRoot, "pages/index.html").exists()
         assert new File(scaffoldRoot, "layouts/default.hbs").exists()
         assert new File(scaffoldRoot, "assets/style.css").exists()
 
-        and: "The config file has the default source directory"
+        and: "The config file has the correct source directory"
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
         assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
+    }
+
+    def "fails when a scaffold file already exists"() {
+        given: "An existing scaffold file"
+        def pagesDir = new File(testProjectDir, "pages")
+        pagesDir.mkdirs()
+        new File(pagesDir, "index.html") << "hello"
+
+        when: "grim-init is run"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--stacktrace")
+                .withPluginClasspath()
+                .buildAndFail()
+
+        then: "The build fails to avoid overwriting existing files"
+        result.output.contains("Cannot overwrite existing file")
     }
 
     def "scaffolds site from packaged plugin jar"() {
@@ -80,23 +114,21 @@ class ScaffoldSpec extends Specification {
         then: "The scaffold structure is created correctly"
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
-
-        def configFile = new File(testProjectDir, "config.grim")
-        assert configFile.exists()
         assert new File(scaffoldRoot, "pages/index.html").exists()
         assert new File(scaffoldRoot, "layouts/default.hbs").exists()
         assert new File(scaffoldRoot, "assets/style.css").exists()
 
         and: "The config file has the default source directory"
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
         assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
     }
-
 
     def "fails when an invalid scaffold type is provided"() {
         when: "The grim-scaffold task is run with a non-existent type"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
-        // We must provide a --dest so the task doesn't fail on the "not empty" check first
+                // Provide a custom destination to isolate from any default directory
                 .withArguments("grim-init", "--dest=test-dest", "--type=non-existent", "--stacktrace")
                 .withPluginClasspath()
                 .buildAndFail()
