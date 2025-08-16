@@ -71,7 +71,7 @@ class ScaffoldSpec extends Specification {
         assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
     }
 
-    def "skips existing scaffold files without overwriting"() {
+    def "overwrites existing scaffold files but preserves directories"() {
         given: "An existing scaffold file"
         def pagesDir = new File(testProjectDir, "pages")
         pagesDir.mkdirs()
@@ -79,14 +79,14 @@ class ScaffoldSpec extends Specification {
         existingFile << "hello"
 
         when: "grim-init is run"
-        def result = GradleRunner.create()
+        GradleRunner.create()
                 .withProjectDir(testProjectDir)
                 .withArguments("grim-init", "--stacktrace")
                 .withPluginClasspath()
                 .build()
 
-        then: "The build succeeds and the existing file remains untouched"
-        existingFile.text == "hello"
+        then: "The build succeeds and the existing file is overwritten"
+        existingFile.text.contains("Welcome to")
         new File(testProjectDir, "layouts/default.hbs").exists()
         new File(testProjectDir, "assets/style.css").exists()
     }
