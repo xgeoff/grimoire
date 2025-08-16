@@ -25,13 +25,12 @@ class ResourceCopier {
                 if (Files.isDirectory(sourcePath)) {
                     Files.createDirectories(targetPath)
                 } else {
-                    if (Files.exists(targetPath)) {
-                        throw new GradleException("Cannot overwrite existing file: ${targetPath}")
+                    if (!Files.exists(targetPath)) {
+                        if (targetPath.parent != null) {
+                            Files.createDirectories(targetPath.parent)
+                        }
+                        Files.copy(sourcePath, targetPath)
                     }
-                    if (targetPath.parent != null) {
-                        Files.createDirectories(targetPath.parent)
-                    }
-                    Files.copy(sourcePath, targetPath)
                 }
             }
         } catch (IOException e) {

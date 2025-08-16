@@ -83,7 +83,7 @@ Use `--dest` to scaffold into a specific subdirectory:
 ./gradlew grim-init --dest=my-docs
 ```
 
-The task will abort if any of the files it intends to create already exist, helping prevent accidental overwrites.
+Existing files are left untouched; the task skips files that already exist to avoid overwriting.
 
 ### 3. Build Your Site
 
