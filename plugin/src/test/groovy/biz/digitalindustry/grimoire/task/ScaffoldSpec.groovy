@@ -51,7 +51,44 @@ class ScaffoldSpec extends Specification {
         assert new File(scaffoldRoot, "assets/style.css").exists()
 
         and: "The config file has the default source directory"
-        assert configFile.text.contains("sourceDir = \"${targetDirName}")
+        assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
+    }
+
+    def "scaffolds site from packaged plugin jar"() {
+        given: "The plugin is packaged as a JAR and a target directory name"
+        def pluginProjectDir = new File('.').getCanonicalFile()
+        // Package the compiled classes and resources into a temporary JAR
+        def jarDir = new File(pluginProjectDir, 'build/tmp/test-plugin')
+        if (jarDir.exists()) { jarDir.deleteDir() }
+        jarDir.mkdirs()
+        def pluginJar = new File(jarDir, 'plugin.jar')
+        new AntBuilder().jar(destfile: pluginJar) {
+            fileset(dir: new File(pluginProjectDir, 'build/classes/groovy/main'))
+            fileset(dir: new File(pluginProjectDir, 'build/resources/main'))
+        }
+        assert pluginJar.exists()
+
+        def targetDirName = 'jar-basic-site'
+
+        when: "grim-init is run using the packaged plugin"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--dest=${targetDirName}", "--stacktrace")
+                .withPluginClasspath([pluginJar])
+                .build()
+
+        then: "The scaffold structure is created correctly"
+        def scaffoldRoot = new File(testProjectDir, targetDirName)
+        assert scaffoldRoot.isDirectory()
+
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
+        assert new File(scaffoldRoot, "pages/index.html").exists()
+        assert new File(scaffoldRoot, "layouts/default.hbs").exists()
+        assert new File(scaffoldRoot, "assets/style.css").exists()
+
+        and: "The config file has the default source directory"
+        assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
     }
 
 
