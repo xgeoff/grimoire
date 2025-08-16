@@ -89,7 +89,7 @@ abstract class ScaffoldTask extends DefaultTask {
                 // The source root is the parent directory of the anchor file.
                 def sourceRoot = anchorPathInJar.parent
 
-                ResourceCopier.copy(sourceRoot, destinationDir.get().asFile().toPath())
+                ResourceCopier.copy(sourceRoot, destinationDir.get().asFile.toPath())
 
                 copyAndModifyConfig(sourceRoot)
             }
