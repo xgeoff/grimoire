@@ -86,8 +86,8 @@ abstract class ScaffoldTask extends DefaultTask {
             FileSystems.newFileSystem(anchorUri, [:]).withCloseable { fs ->
                 // Get the path to the anchor file *inside* the JAR's virtual filesystem.
                 def anchorPathInJar = fs.getPath(anchorResourcePath)
-                // The source root is the parent directory of the anchor file.
-                def sourceRoot = anchorPathInJar.parent
+                // The path inside the JAR already points at the scaffold folder we want.
+                def sourceRoot = anchorPathInJar
 
                 ResourceCopier.copy(sourceRoot, destinationDir.get().asFile.toPath())
 
@@ -95,12 +95,9 @@ abstract class ScaffoldTask extends DefaultTask {
             }
         } else {
             // For a direct filesystem, it's simpler.
-            def anchorPath = Paths.get(anchorUri)
-            // The source root is the parent directory of the anchor file.
-            //def sourceRoot = anchorPath.parent
-            ResourceCopier.copy(anchorPath, destinationDir.get().getAsFile().toPath())
-            //copyScaffoldContent(anchorResourcePath)
-            copyAndModifyConfig(anchorPath)
+            def sourceRoot = Paths.get(anchorUri)
+            ResourceCopier.copy(sourceRoot, destinationDir.get().getAsFile().toPath())
+            copyAndModifyConfig(sourceRoot)
         }
 
         logger.lifecycle("✅ Grimoire site initialized successfully.")
@@ -111,7 +108,7 @@ abstract class ScaffoldTask extends DefaultTask {
      * Copies and modifies the config file from the scaffold's source path.
      * This method now operates on reliable Path objects.
      */
-    private void copyAndModifyConfig(Path anchorPath) {
+    void copyAndModifyConfig(Path anchorPath) {
         def configFile = anchorPath.resolve("config.grim")
 
         if (!Files.exists(configFile)) {
