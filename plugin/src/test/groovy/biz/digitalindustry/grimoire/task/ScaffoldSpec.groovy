@@ -77,15 +77,56 @@ class ScaffoldSpec extends Specification {
         pagesDir.mkdirs()
         new File(pagesDir, "index.html") << "hello"
 
-        when: "grim-init is run"
+        when: "grim-init is run with --force to bypass non-empty check"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--force", "--stacktrace")
+                .withPluginClasspath()
+                .buildAndFail()
+
+        then: "The build fails to avoid overwriting existing files"
+        result.output.contains("Cannot overwrite existing file")
+    }
+
+    def "fails in non-empty directory without force"() {
+        given: "An existing non-scaffold file in the destination"
+        def existing = new File(testProjectDir, "existing.txt")
+        existing.text = "original"
+
+        when: "grim-init is run without --force"
         def result = GradleRunner.create()
                 .withProjectDir(testProjectDir)
                 .withArguments("grim-init", "--stacktrace")
                 .withPluginClasspath()
                 .buildAndFail()
 
-        then: "The build fails to avoid overwriting existing files"
-        result.output.contains("Cannot overwrite existing file")
+        then: "The build fails and the original file remains untouched"
+        result.output.contains("not empty")
+        existing.text == "original"
+        !new File(testProjectDir, "pages").exists()
+    }
+
+    def "scaffolds in non-empty directory with force"() {
+        given: "An existing non-scaffold file in the destination"
+        def existing = new File(testProjectDir, "existing.txt")
+        existing.text = "original"
+
+        when: "grim-init is run with --force"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--force", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then: "The scaffold structure is created and the existing file is preserved"
+        new File(testProjectDir, "pages/index.html").exists()
+        new File(testProjectDir, "layouts/default.hbs").exists()
+        new File(testProjectDir, "assets/style.css").exists()
+        existing.text == "original"
+        and:
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
+        assert configFile.text.contains('sourceDir = "."')
     }
 
     def "scaffolds site from packaged plugin jar"() {
@@ -119,6 +160,40 @@ class ScaffoldSpec extends Specification {
         assert new File(scaffoldRoot, "assets/style.css").exists()
 
         and: "The config file has the default source directory"
+        def configFile = new File(testProjectDir, "config.grim")
+        assert configFile.exists()
+        assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
+    }
+
+    def "scaffolds site from built plugin jar"() {
+        given: "The plugin jar exists in the build/libs directory and a target directory name"
+        def pluginProjectDir = new File('.').getCanonicalFile()
+        def libsDir = new File(pluginProjectDir, 'build/libs')
+        libsDir.mkdirs()
+        def pluginJar = new File(libsDir, 'plugin.jar')
+        new AntBuilder().jar(destfile: pluginJar) {
+            fileset(dir: new File(pluginProjectDir, 'build/classes/groovy/main'))
+            fileset(dir: new File(pluginProjectDir, 'build/resources/main'))
+        }
+        assert pluginJar.exists()
+
+        def targetDirName = 'built-jar-site'
+
+        when: "grim-init is run using the built plugin jar"
+        def result = GradleRunner.create()
+                .withProjectDir(testProjectDir)
+                .withArguments("grim-init", "--dest=${targetDirName}", "--stacktrace")
+                .withPluginClasspath([pluginJar])
+                .build()
+
+        then: "The scaffold structure is created correctly"
+        def scaffoldRoot = new File(testProjectDir, targetDirName)
+        assert scaffoldRoot.isDirectory()
+        assert new File(scaffoldRoot, "pages/index.html").exists()
+        assert new File(scaffoldRoot, "layouts/default.hbs").exists()
+        assert new File(scaffoldRoot, "assets/style.css").exists()
+
+        and: "The config file has the correct source directory"
         def configFile = new File(testProjectDir, "config.grim")
         assert configFile.exists()
         assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
