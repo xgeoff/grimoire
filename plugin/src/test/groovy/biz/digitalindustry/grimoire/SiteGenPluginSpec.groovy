@@ -70,6 +70,23 @@ class SiteGenPluginSpec extends Specification {
         assert outputFile.text.contains("Test-Bot")
     }
 
+    def "skips page generation when destination is directory"() {
+        given: "An existing directory where a page would be generated"
+        def conflictDir = new File(testDir.toFile(), "public/index.html")
+        conflictDir.mkdirs()
+
+        when: "grim-gen runs"
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then: "The directory remains and no file is written"
+        conflictDir.isDirectory()
+        !new File(testDir.toFile(), "public/index.html").isFile()
+    }
+
     def cleanupSpec() {
         File testProjectDir = testDir.toFile()
         println "Cleaning up test directory: ${testProjectDir.absolutePath}"

@@ -3,6 +3,7 @@ package biz.digitalindustry.grimoire.util
 import org.gradle.api.GradleException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.io.IOException
 
 /**
@@ -23,13 +24,15 @@ class ResourceCopier {
                 def targetPath = targetRoot.resolve(sourceRoot.relativize(sourcePath).toString())
 
                 if (Files.isDirectory(sourcePath)) {
+                    // Always ensure the directory exists but never replace existing directories
                     Files.createDirectories(targetPath)
                 } else {
-                    if (!Files.exists(targetPath)) {
-                        if (targetPath.parent != null) {
-                            Files.createDirectories(targetPath.parent)
-                        }
-                        Files.copy(sourcePath, targetPath)
+                    // Overwrite existing files but skip if the destination is a directory
+                    if (targetPath.parent != null) {
+                        Files.createDirectories(targetPath.parent)
+                    }
+                    if (!Files.isDirectory(targetPath)) {
+                        Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
                     }
                 }
             }

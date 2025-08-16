@@ -65,14 +65,14 @@ abstract class SiteGenTask extends DefaultTask {
     private void cleanOutputDir() {
         def outputRoot = outputDir.get().asFile
         if (outputRoot.exists()) {
-            // FIX: Replace the project.delete() call with a standard file operation.
-            // The deleteDir() method is a Groovy extension that recursively deletes.
-            // This makes the task compatible with Gradle's configuration caching.
-            if (!outputRoot.deleteDir()) {
-                throw new GradleException("Could not clean output directory: ${outputRoot}")
+            outputRoot.eachFileRecurse(FileType.FILES) { file ->
+                if (!file.delete()) {
+                    throw new GradleException("Could not delete file: ${file}")
+                }
             }
+        } else {
+            outputRoot.mkdirs()
         }
-        outputRoot.mkdirs()
         logger.info("Cleaned output directory: {}", outputRoot)
     }
 
@@ -161,9 +161,13 @@ abstract class SiteGenTask extends DefaultTask {
                 def finalOutput = layoutTemplate.apply(mergedContext + [content: renderedContent])
 
                 def outFile = new File(outputRoot, pageFile.name.replaceAll(/\.(html|md)$/, '.html'))
-                outFile.parentFile.mkdirs()
-                outFile.text = finalOutput
-                logger.info("Generated page: {} (layout: {})", outFile.name, layoutName)
+                if (outFile.exists() && outFile.isDirectory()) {
+                    logger.warn("Skipping page generation for '{}'; destination is a directory: {}", pageFile.name, outFile)
+                } else {
+                    outFile.parentFile.mkdirs()
+                    outFile.text = finalOutput
+                    logger.info("Generated page: {} (layout: {})", outFile.name, layoutName)
+                }
             } catch (Exception e) {
                 throw new GradleException("Failed to generate page from ${pageFile.name}", e)
             }
@@ -192,17 +196,23 @@ abstract class SiteGenTask extends DefaultTask {
                 // Handle SASS compilation.
                 def cssOutFile = new File(destAssets, relPath.replaceAll(/\.s[ac]ss$/, '.css'))
                 compileSass(file, cssOutFile)
-                logger.info("Compiled SASS: {} -> {}", file.name, cssOutFile.name)
+                if (cssOutFile.exists() && !cssOutFile.isDirectory()) {
+                    logger.info("Compiled SASS: {} -> {}", file.name, cssOutFile.name)
+                }
             } else {
                 // Handle all other assets (copy and apply Handlebars templating).
                 def outFile = new File(destAssets, relPath)
-                outFile.parentFile.mkdirs()
+                if (outFile.exists() && outFile.isDirectory()) {
+                    logger.warn("Skipping asset copy for '{}'; destination is a directory: {}", file.name, outFile)
+                } else {
+                    outFile.parentFile.mkdirs()
 
-                try {
-                    def rendered = engine.compileInline(file.text).apply(config)
-                    outFile.text = rendered
-                } catch (Exception e) {
-                    throw new GradleException("Failed to template asset file ${file.name}", e)
+                    try {
+                        def rendered = engine.compileInline(file.text).apply(config)
+                        outFile.text = rendered
+                    } catch (Exception e) {
+                        throw new GradleException("Failed to template asset file ${file.name}", e)
+                    }
                 }
             }
         }
@@ -214,6 +224,10 @@ abstract class SiteGenTask extends DefaultTask {
     private void compileSass(File inputFile, File outputFile) {
         def compiler = new Compiler()
         def options = new Options()
+        if (outputFile.exists() && outputFile.isDirectory()) {
+            logger.warn("Skipping SASS output for '{}'; destination is a directory: {}", inputFile.name, outputFile)
+            return
+        }
         try {
             Output output = compiler.compileFile(inputFile.toURI(), outputFile.toURI(), options)
             outputFile.parentFile.mkdirs()
