@@ -41,3 +41,74 @@ A typical Grimoire project follows this structure:
 | File naming        | `header.hbs` → referenced as `{{> header}}`           |
 | Usage              | Can be used in layouts, pages, or other partials      |
 | Registration       | Automatically load all `.hbs` files from partials dir |
+
+
+
+## Getting Started
+
+The `biz.digitalindustry.grimoire` Gradle plugin helps you build static sites using Markdown or HTML templates with Handlebars-style layouts and partials.
+
+### 1. Include the Plugin
+
+To use the Grimoire plugin in your project, add the following to your `build.gradle`:
+
+```groovy
+plugins {
+    id 'biz.digitalindustry.grimoire' version '1.0.0'
+}
+```
+
+### 2. Scaffold a New Site Project
+
+To scaffold a new project structure, run the following command in your terminal:
+
+```bash
+./gradlew grim-init
+```
+
+This will generate a basic site structure under your project directory:
+
+```
+<project-root>/
+├── site/
+│   ├── config.grim            # Groovy-based site configuration
+│   ├── pages/                 # Markdown or HTML page files
+│   ├── layouts/               # Handlebars layouts
+│   ├── partials/              # Optional Handlebars partials
+│   └── data/                  # Optional data in JSON/YAML/Groovy
+```
+
+You can also specify a custom root directory:
+
+```bash
+./gradlew grim-init --dest=my-docs
+```
+
+### 3. Build Your Site
+
+Once your content is ready, you can generate the site using:
+
+```bash
+./gradlew grim
+```
+
+The rendered site will be output to:
+
+```
+public
+```
+
+You can change this output location via `config.grim` using the `outputDir` property.
+
+### 4. Preview with Built-in Server
+
+To preview your site locally:
+
+```bash
+./gradlew grim-serve
+```
+
+The server will default to `http://localhost:8080` unless configured otherwise in `config.grim`.
+
+### 5. Customize Your Site
+
