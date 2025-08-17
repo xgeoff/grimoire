@@ -10,6 +10,8 @@ class MarkdownParser {
 
     static String toHtml(String markdown) {
         def document = parser.parse(markdown)
-        return renderer.render(document)
+        def html = renderer.render(document)
+        // Unescape HTML entities that may appear inside Handlebars helpers
+        html.replace('&quot;', '"')
     }
 }
