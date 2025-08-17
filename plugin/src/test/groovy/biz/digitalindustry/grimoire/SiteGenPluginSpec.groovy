@@ -70,6 +70,21 @@ class SiteGenPluginSpec extends Specification {
         assert outputFile.text.contains("Test-Bot")
     }
 
+    def "helper quoted arguments render without HTML entities"() {
+        when: "grim-gen processes markdown with helpers"
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then: "Rendered page contains helper output without &quot; entities"
+        def outputFile = new File(testDir.toFile(), "public/quoted-helper.html")
+        outputFile.exists()
+        outputFile.text.contains("<div>")
+        !outputFile.text.contains("&quot;")
+    }
+
     def "skips page generation when destination is directory"() {
         given: "An existing directory where a page would be generated"
         def conflictDir = new File(testDir.toFile(), "public/index.html")
