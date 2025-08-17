@@ -169,7 +169,7 @@ abstract class SiteGenTask extends DefaultTask {
                     logger.info("Generated page: {} (layout: {})", outFile.name, layoutName)
                 }
             } catch (Exception e) {
-                throw new GradleException("Failed to generate page from ${pageFile.name}", e)
+                throw new GradleException("Failed to generate page from ${pageFile.name}: ${e.message}", e)
             }
         }
     }
