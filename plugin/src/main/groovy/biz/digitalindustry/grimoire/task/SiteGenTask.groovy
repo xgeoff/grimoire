@@ -145,8 +145,13 @@ abstract class SiteGenTask extends DefaultTask {
                 def pageContext = parsed.metadata
                 def mergedContext = config + pageContext
 
-                def bodyContent = pageFile.name.endsWith(".md") ? MarkdownParser.toHtml(parsed.content) : parsed.content
-                def renderedContent = engine.compileInline(bodyContent).apply(mergedContext)
+                def renderedContent
+                if (pageFile.name.endsWith(".md")) {
+                    def templatedMarkdown = engine.compileInline(parsed.content).apply(mergedContext)
+                    renderedContent = MarkdownParser.toHtml(templatedMarkdown)
+                } else {
+                    renderedContent = engine.compileInline(parsed.content).apply(mergedContext)
+                }
 
                 def layoutName = pageContext.layout ?: "default"
                 def layoutFile = new File(layoutDir, "${layoutName}.hbs")
