@@ -76,7 +76,7 @@ server { port = ${testPort} }
 
         and: "HTTP requests are made"
         def rootContent = new URL("http://localhost:${testPort}/").text
-        def cssContent = new URL("http://localhost:${testPort}/assets/style.css").text
+        def cssContent = new URL("http://localhost:${testPort}/style.css").text
 
         then: "The content is served correctly"
         rootContent.contains("<h1>Welcome to Grimoire!</h1>")
