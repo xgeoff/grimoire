@@ -190,7 +190,8 @@ abstract class SiteGenTask extends DefaultTask {
         if (!assetsDir.exists()) return
 
         logger.lifecycle("Processing assets from: {}", assetsDir)
-        def destAssets = new File(outputRoot, "assets")
+        // Copy asset contents directly into the output root rather than nested under an 'assets' directory
+        def destAssets = outputRoot
 
         // This manual traversal replaces the non-cache-safe `project.copy` call.
         assetsDir.eachFileRecurse(FileType.FILES) { file ->
