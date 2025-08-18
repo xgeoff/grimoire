@@ -81,7 +81,7 @@ abstract class ScaffoldTask extends DefaultTask {
                 // The path inside the JAR already points at the scaffold folder we want.
                 def sourceRoot = anchorPathInJar
 
-                ResourceCopier.copy(sourceRoot, destinationDir.get().asFile.toPath())
+                  ResourceCopier.copy(sourceRoot, destinationDir.get().asFile.toPath(), ['config.grim'])
 
                 if (writeConfig) {
                     copyAndModifyConfig(sourceRoot)
@@ -91,8 +91,8 @@ abstract class ScaffoldTask extends DefaultTask {
             }
         } else {
             // For a direct filesystem, it's simpler.
-            def sourceRoot = Paths.get(anchorUri)
-            ResourceCopier.copy(sourceRoot, destinationDir.get().getAsFile().toPath())
+              def sourceRoot = Paths.get(anchorUri)
+              ResourceCopier.copy(sourceRoot, destinationDir.get().getAsFile().toPath(), ['config.grim'])
             if (writeConfig) {
                 copyAndModifyConfig(sourceRoot)
             } else {
