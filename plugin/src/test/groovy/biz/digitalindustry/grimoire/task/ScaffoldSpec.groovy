@@ -63,12 +63,13 @@ class ScaffoldSpec extends Specification {
         assert scaffoldRoot.isDirectory()
         assert new File(scaffoldRoot, "pages/index.html").exists()
         assert new File(scaffoldRoot, "layouts/default.hbs").exists()
-        assert new File(scaffoldRoot, "assets/style.css").exists()
+          assert new File(scaffoldRoot, "assets/style.css").exists()
+          assert !new File(scaffoldRoot, "config.grim").exists()
 
-        and: "The config file has the correct source directory"
-        def configFile = new File(testProjectDir, "config.grim")
-        assert configFile.exists()
-        assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
+          and: "The config file has the correct source directory"
+          def configFile = new File(testProjectDir, "config.grim")
+          assert configFile.exists()
+          assert configFile.text.contains("sourceDir = \"${targetDirName}\"")
     }
 
     def "overwrites existing scaffold files but preserves directories"() {
