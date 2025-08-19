@@ -2,7 +2,7 @@ import com.github.jknack.handlebars.Helper
 import com.github.jknack.handlebars.Options
 
 return { Object context, Options options ->
-    def pagesDir = options.context.model('pagesDir') as File
+    def pagesDir = options.context.get('pagesDir') as File
     if (!pagesDir?.exists() || !pagesDir.directory) {
         return []
     }
