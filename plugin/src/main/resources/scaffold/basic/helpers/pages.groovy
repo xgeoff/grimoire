@@ -24,11 +24,12 @@ return { Object context, Options options ->
             } else if (file.name ==~ /(?i).*\.(md|html?)$/) {
                 def relativePath = root.toPath().relativize(file.toPath()).toString().replace(File.separator, "/")
                 def name = file.name.replaceFirst(/(?i)\.(md|html?)$/, "")
+                def path = relativePath.replaceFirst(/(?i)\.(md|html?)$/, "")
 
                 items << [
                         type: 'file',
                         name: name,
-                        path: relativePath
+                        path: path
                 ]
             }
         }

@@ -9,5 +9,5 @@
         </ul>
     </li>
 {{else if (eq type "file")}}
-    <li class="file"><a href="{{#if @root.baseUrl}}{{@root.baseUrl}}/{{path}}{{else}}/{{path}}{{/if}}">{{name}}</a></li>
+    <li class="file"><a href="{{#if @root.baseUrl}}{{@root.baseUrl}}/{{path}}.html{{else}}/{{path}}.html{{/if}}">{{name}}</a></li>
 {{/if}}
