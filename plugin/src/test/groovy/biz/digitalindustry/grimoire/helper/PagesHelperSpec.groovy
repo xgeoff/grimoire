@@ -20,6 +20,6 @@ class PagesHelperSpec extends Specification {
         def items = helper.apply(null, options)
 
         then:
-        items.collect { it.path }.toSet() == ['a.md', 'b.html', 'c.htm'] as Set
+        items.collect { it.path }.toSet() == ['a', 'b', 'c'] as Set
     }
 }
