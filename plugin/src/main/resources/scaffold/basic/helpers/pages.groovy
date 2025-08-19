@@ -21,7 +21,7 @@ return { Object context, Options options ->
                             children: children
                     ]
                 }
-            } else if (file.name ==~ /(?i).*\.md|\.html?$/) {
+            } else if (file.name ==~ /(?i).*\.(md|html?)$/) {
                 def relativePath = root.toPath().relativize(file.toPath()).toString().replace(File.separator, "/")
                 def name = file.name.replaceFirst(/(?i)\.(md|html?)$/, "")
 
