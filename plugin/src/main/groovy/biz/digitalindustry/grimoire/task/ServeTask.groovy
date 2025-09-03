@@ -2,31 +2,44 @@ package biz.digitalindustry.grimoire.task
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import groovy.util.ConfigObject
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.Property
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import javax.inject.Inject
 
 import java.net.InetSocketAddress
 import java.nio.file.Files
 
 abstract class ServeTask extends DefaultTask {
 
+    @Inject
+    abstract ProjectLayout getLayout()
+
+    @InputFile
+    abstract RegularFileProperty getConfigFile()
+
+    @InputDirectory
+    abstract DirectoryProperty getWebRootDir()
+
+    @Internal
     private HttpServer server
+
+    ServeTask() {
+        getConfigFile().convention(getLayout().projectDirectory.file("config.grim"))
+        getWebRootDir().convention(getLayout().projectDirectory.dir("public"))
+    }
 
     @TaskAction
     void serve() {
-        def configFile = new File(project.layout.projectDirectory.asFile, "config.grim")
-        ConfigObject config = new ConfigSlurper().parse(configFile.toURI().toURL())
+        def config = new ConfigSlurper().parse(getConfigFile().get().asFile.toURI().toURL())
         // This must be final so the closure can safely capture it.
-        final File webRootDir = config.outputDir ? new File(project.layout.projectDirectory.asFile, config.outputDir) : new File(project.layout.projectDirectory.asFile, "public")
+        File webRootDir = config.outputDir ? getLayout().projectDirectory.dir(config.outputDir).asFile : getWebRootDir().get().asFile
 
         if (!webRootDir.exists() || !webRootDir.isDirectory())
             throw new GradleException("Web root directory to serve not found or not a directory: ${webRootDir.absolutePath}. Please run 'grim-gen' first.")
