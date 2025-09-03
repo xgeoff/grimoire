@@ -36,9 +36,6 @@ class GrimoirePlugin implements Plugin<Project> {
         project.tasks.register('grim-serve', ServeTask) { task ->
             task.group = TASK_GROUP
             task.description = 'Serves the static site.'
-
-            task.configFile.set(configFile)
-            task.outputDir.set(project.file(outputPath))
         }
 
         project.tasks.register('grim-init', ScaffoldTask) { task ->
