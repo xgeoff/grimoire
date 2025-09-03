@@ -27,8 +27,10 @@ abstract class ServeTask extends DefaultTask {
     @InputDirectory
     abstract DirectoryProperty getWebRootDir()
 
-    @Internal
     private HttpServer server
+
+    @Internal
+    HttpServer getServer() { server }
 
     ServeTask() {
         getConfigFile().convention(getLayout().projectDirectory.file("config.grim"))
