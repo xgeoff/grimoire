@@ -112,4 +112,46 @@ To preview your site locally:
 The server will default to `http://localhost:8080` unless configured otherwise in `config.grim`.
 
 ### 5. Customize Your Site
+Grimoire reads configuration from a `config.grim` file located in the
+project root. The file is a Groovy script, allowing you to tailor the
+build process programmatically. Common options include tweaking
+directories and the port used by the preview server:
 
+```groovy
+// config.grim
+sourceDir = "docs"        // Where your content lives
+outputDir = "public"      // Build destination
+
+paths {
+    pages    = "pages"    // Content pages
+    layouts  = "layouts"  // Handlebars layouts
+    partials = "partials" // Reusable snippets
+    helpers  = "helpers"  // Groovy Handlebars helpers
+    assets   = "assets"   // Static files
+}
+
+server {
+    port = 9000           // Used by `grim-serve`
+}
+```
+
+Each block is optional—omit it to use the defaults. Helpers placed in
+the `helpers/` directory are automatically compiled and registered,
+while partials in `partials/` are available via the familiar
+`{{> partialName}}` syntax. Front matter in pages provides per-page
+metadata such as titles or layouts.
+
+---
+
+## Development
+
+This repository contains the Grimoire Gradle plugin. Run the full test
+suite with:
+
+```bash
+./gradlew check
+```
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
