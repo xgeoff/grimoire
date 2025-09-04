@@ -7,7 +7,6 @@ import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
@@ -24,7 +23,7 @@ abstract class ServeTask extends DefaultTask {
     @InputFile
     abstract RegularFileProperty getConfigFile()
 
-    @InputDirectory
+    @Internal
     abstract DirectoryProperty getWebRootDir()
 
     private HttpServer server
