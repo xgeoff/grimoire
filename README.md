@@ -145,6 +145,7 @@ project root. The file is a Groovy script, allowing you to tailor the
 build process programmatically. Common options include tweaking
 directories and the port used by the preview server:
 
+
 ```groovy
 // config.grim
 sourceDir = "docs"        // Where your content lives
