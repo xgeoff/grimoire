@@ -11,23 +11,6 @@ class GrimoirePlugin implements Plugin<Project> {
         project.plugins.apply('base')
         def extension = project.extensions.create("grimoire", SiteGenExtension)
         final String TASK_GROUP = "Grimoire"
-        // --- CONFIGURATION LOGIC ---
-        // This logic runs during Gradle's configuration phase.
-
-        // 1. Define the conventional location for the config file.
-        def configFile = project.file("config.grim")
-        def config = new ConfigObject()
-
-        // 2. Parse the config file if it exists.
-        if (configFile.exists()) {
-            config = new ConfigSlurper().parse(configFile.toURI().toURL())
-        }
-
-        // 3. Determine the source and output directories based on the config.
-        //    Default to 'src' and 'build/grimoire' if not specified.
-        def sourcePath = config.sourceDir ?: '.'
-        def outputPath = config.outputDir ?: '.'
-
         // --- TASK REGISTRATION ---
         /*
         project.tasks.named('clean', Delete) {
@@ -36,6 +19,8 @@ class GrimoirePlugin implements Plugin<Project> {
         project.tasks.register('grim-serve', ServeTask) { task ->
             task.group = TASK_GROUP
             task.description = 'Serves the static site.'
+            // Single source of truth: the config file drives server behavior
+            task.configFile.set(extension.configFile)
         }
 
         project.tasks.register('grim-init', ScaffoldTask) { task ->
@@ -48,11 +33,11 @@ class GrimoirePlugin implements Plugin<Project> {
         def generateTaskProvider = project.tasks.register('grim-gen', SiteGenTask) { task ->
             task.group = TASK_GROUP
             task.description = 'Generates the static site.'
-
-            task.configFile.set(configFile)
-            task.sourceDir.set(project.file(sourcePath))
-            //task.outputDir.set(project.layout.buildDirectory.dir(outputPath))
-            task.outputDir.set(project.file(outputPath))
+            // Single source of truth: pass only the config file here
+            task.configFile.set(extension.configFile)
+            // Provide conservative defaults; replaced afterEvaluate using config.grim
+            task.sourceDir.set(project.file('.'))
+            task.outputDir.set(project.file('public'))
         }
 
         // Register the 'grim' task as an alias for 'grim-generate'
@@ -60,6 +45,31 @@ class GrimoirePlugin implements Plugin<Project> {
             task.group = TASK_GROUP
             task.description = "Alias for grim-generate. Generates the static site."
             task.dependsOn(generateTaskProvider)
+        }
+
+        // Configure from config.grim immediately (for tests and simple builds)
+        def initialCf = extension.configFile.get().asFile
+        def initialParsed = new ConfigObject()
+        if (initialCf.exists()) {
+            initialParsed = new ConfigSlurper().parse(initialCf.toURI().toURL())
+        }
+        def initialSourcePath = initialParsed.sourceDir ?: '.'
+        def initialOutputPath = initialParsed.outputDir ?: 'public'
+        generateTaskProvider.configure { task ->
+            task.sourceDir.set(project.file(initialSourcePath))
+            task.outputDir.set(project.file(initialOutputPath))
+        }
+
+        // Resolve configuration after users had a chance to set grimoire { configFile = ... }
+        project.afterEvaluate {
+            def cf = extension.configFile.get().asFile
+            def parsed = new ConfigSlurper().parse(cf.toURI().toURL())
+            def sourcePath = parsed.sourceDir ?: '.'
+            def outputPath = parsed.outputDir ?: 'public'
+            generateTaskProvider.configure { task ->
+                task.sourceDir.set(project.file(sourcePath))
+                task.outputDir.set(project.file(outputPath))
+            }
         }
     }
 }

@@ -16,13 +16,11 @@ abstract class SiteGenExtension {
      * Defaults to 'config.grim' in the project root.
      */
     abstract RegularFileProperty getConfigFile()
-    abstract DirectoryProperty getOutputDir() // Add this abstract method
 
     @Inject
     SiteGenExtension(ObjectFactory objects) {
         // Set the default location for the config file.
         // Users can override this in their build script.
         configFile.convention(objects.fileProperty().fileValue(new File("config.grim")))
-        outputDir.convention(objects.directoryProperty().fileValue(new File("public")))
     }
 }

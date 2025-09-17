@@ -170,6 +170,14 @@ while partials in `partials/` are available via the familiar
 `{{> partialName}}` syntax. Front matter in pages provides per-page
 metadata such as titles or layouts.
 
+### Configuration Rules
+- Single source of truth: `config.grim` controls all site behavior (paths, server, etc.).
+- The Gradle block only points to the config file:
+  - Groovy DSL:
+    - `grimoire { configFile = file("config/prod.grim") }`
+- Do not duplicate configuration in `build.gradle`; set directories and options in `config.grim`.
+- Typical multi‑env setup: keep `config.grim` as default, add `config/prod.grim`, and switch via the block above.
+
 ---
 
 ## Development
