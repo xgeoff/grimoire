@@ -92,8 +92,19 @@ abstract class ServeTask extends DefaultTask {
         logger.lifecycle("Serving files from: ${webRootDir.absolutePath}")
         logger.lifecycle("Press Ctrl+C to stop the server.")
 
-        // This will block until the thread is interrupted or server is stopped
-        Thread.currentThread().join()
+        // Block until interrupted (e.g., Ctrl+C) and then stop the server.
+        // Using sleep in a loop allows Gradle to interrupt the task thread
+        // on cancellation, ensuring we can cleanly close the socket.
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                Thread.sleep(1000)
+            }
+        } catch (InterruptedException ignored) {
+            // Gradle cancels tasks by interrupting their threads
+            Thread.currentThread().interrupt()
+        } finally {
+            stopServer()
+        }
     }
 
     void stopServer() {
@@ -102,7 +113,8 @@ abstract class ServeTask extends DefaultTask {
             // This gives the server up to 1 second to finish any active
             // requests gracefully, which prevents the race condition.
             server.stop(1)
-            logger.info("Server stopped by test.")
+            server = null
+            logger.info("Server stopped.")
         }
     }
 }

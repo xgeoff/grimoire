@@ -102,6 +102,21 @@ class SiteGenPluginSpec extends Specification {
         !new File(testDir.toFile(), "public/index.html").isFile()
     }
 
+    def "markdown tables render to HTML tables"() {
+        when: "grim-gen processes a markdown file with a pipe table"
+        def result = GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then: "The generated HTML contains a <table> element"
+        def outputFile = new File(testDir.toFile(), "public/markdown-table.html")
+        outputFile.exists()
+        def html = outputFile.text
+        html.contains("<table") && (html.contains("<td") || html.contains("<th"))
+    }
+
     def cleanupSpec() {
         File testProjectDir = testDir.toFile()
         println "Cleaning up test directory: ${testProjectDir.absolutePath}"
