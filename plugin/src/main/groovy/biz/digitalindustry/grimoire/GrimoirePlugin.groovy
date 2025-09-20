@@ -63,7 +63,10 @@ class GrimoirePlugin implements Plugin<Project> {
         // Resolve configuration after users had a chance to set grimoire { configFile = ... }
         project.afterEvaluate {
             def cf = extension.configFile.get().asFile
-            def parsed = new ConfigSlurper().parse(cf.toURI().toURL())
+            def parsed = new ConfigObject()
+            if (cf.exists()) {
+                parsed = new ConfigSlurper().parse(cf.toURI().toURL())
+            }
             def sourcePath = parsed.sourceDir ?: '.'
             def outputPath = parsed.outputDir ?: 'public'
             generateTaskProvider.configure { task ->
