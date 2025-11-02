@@ -51,12 +51,34 @@ abstract class ServeTask extends DefaultTask {
             exchange.responseBody.withStream { it.write(response) }
         }
 
-        // Define handler closure inside the method to correctly capture the web root directory.
+        // Normalize base path for the HTTP context ("/" or "/subpath")
+        String basePath = normalizeBasePathForServer(config.baseUrl as String)
+
+        // Define handler closure inside the method to correctly capture the web root directory
+        // and the normalized base path.
         def handler = { HttpExchange exchange ->
             try {
+                def requestPath = exchange.requestURI.path ?: "/"
 
-                def requestPath = exchange.requestURI.path
-                def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
+                // If the request exactly matches the base path (e.g., "/arden"),
+                // redirect to the trailing-slash form ("/arden/") so that relative
+                // URLs in the HTML resolve under the subpath instead of root.
+                if (basePath != "/" && requestPath == basePath) {
+                    def redirectTo = basePath + "/"
+                    exchange.responseHeaders.set("Location", redirectTo)
+                    exchange.sendResponseHeaders(301, -1)
+                    exchange.close()
+                    return
+                }
+
+                // Strip the configured base path so we can map to files under webRootDir
+                String localPath = requestPath
+                if (basePath != "/" && requestPath.startsWith(basePath)) {
+                    localPath = requestPath.substring(basePath.length())
+                    if (localPath.isEmpty()) localPath = "/"
+                }
+
+                def effectivePath = (localPath == "/") ? 'index.html' : (localPath.startsWith('/') ? localPath.substring(1) : localPath)
                 def requestedFile = new File(webRootDir, effectivePath)
 
                 if (!requestedFile.canonicalPath.startsWith(webRootDir.canonicalPath)) {
@@ -81,14 +103,15 @@ abstract class ServeTask extends DefaultTask {
             }
         }
 
-        def baseUrl = config.baseUrl ?: "/"
+        def baseUrl = basePath
         def port = config.server?.port ?: 8080
         this.server = HttpServer.create(new InetSocketAddress(port), 0)
         server.createContext(baseUrl, handler as com.sun.net.httpserver.HttpHandler)
         server.executor = null
         server.start()
 
-        logger.lifecycle("Grimoire server started on http://localhost:${port}")
+        def displayUrl = "http://localhost:${port}" + (baseUrl == "/" ? "" : baseUrl)
+        logger.lifecycle("Grimoire server started on ${displayUrl}")
         logger.lifecycle("Serving files from: ${webRootDir.absolutePath}")
         logger.lifecycle("Press Ctrl+C to stop the server.")
 
@@ -105,6 +128,15 @@ abstract class ServeTask extends DefaultTask {
         } finally {
             stopServer()
         }
+    }
+
+    private static String normalizeBasePathForServer(String raw) {
+        if (!raw) return "/"
+        String base = raw.trim()
+        if (!base.startsWith("/")) base = "/" + base
+        // Remove trailing slash except for root
+        if (base.length() > 1 && base.endsWith("/")) base = base.substring(0, base.length() - 1)
+        return base
     }
 
     void stopServer() {

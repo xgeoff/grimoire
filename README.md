@@ -139,6 +139,30 @@ To preview your site locally:
 
 The server will default to `http://localhost:8080` unless configured otherwise in `config.grim`.
 
+#### Base URL (subpath) support
+
+If your site is deployed under a subpath (e.g., GitHub Pages project sites), set `baseUrl` in `config.grim`. The dev server will serve your site under the same subpath so local URLs match production.
+
+Examples:
+
+```groovy
+// Root site (default)
+baseUrl = "/"            // Local: http://localhost:8080/
+
+// Subpath (either form is accepted)
+baseUrl = "arden"        // Local: http://localhost:8080/arden
+// or
+baseUrl = "/arden"      // Local: http://localhost:8080/arden
+
+server { port = 8080 }
+```
+
+Notes:
+- For GitHub Pages project sites use `baseUrl = "/<repo-name>"`.
+- For user/org root sites use `baseUrl = "/"`.
+- `baseUrl` is normalized (leading slash added, trailing slash removed). Templates see an empty string when `baseUrl` is root to avoid `//path` links.
+- The starter templates already prefix links with `{{@root.baseUrl}}` when present.
+
 ### 5. Customize Your Site
 Grimoire reads configuration from a `config.grim` file located in the
 project root. The file is a Groovy script, allowing you to tailor the

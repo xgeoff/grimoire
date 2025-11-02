@@ -44,17 +44,28 @@ abstract class SiteGenTask extends DefaultTask {
 
     @TaskAction
     void generate() {
-        // 1. Setup: Clean output directory and parse configuration
-        cleanOutputDir()
+        // 1. Parse configuration first so we can honor overrides for dirs
         def config = parseConfig()
-        def sourceRoot = sourceDir.get().asFile
-        def outputRoot = outputDir.get().asFile
+        // Normalize baseUrl for template usage: empty string for root, otherwise "/subpath" (no trailing slash)
+        config.baseUrl = normalizeBaseUrlForTemplates(config.baseUrl as String)
+        // Prefer directories from config.grim when provided; fall back to task properties.
+        // Avoid accessing Task.project at execution time (configuration cache safety) by
+        // resolving any relative paths against the config file's parent directory.
+        File baseDir = configFile.get().asFile.parentFile
+        def sourceRoot = (config.sourceDir ? new File(baseDir, config.sourceDir as String) : sourceDir.get().asFile)
+        def outputRoot = (config.outputDir ? new File(baseDir, config.outputDir as String) : outputDir.get().asFile)
 
-        // 2. Initialize template engines
+        // 2. Clean the effective output directory
+        cleanOutputDir(outputRoot)
+
+        // 3. Initialize template engines
         def engine = createHandlebarsEngine(sourceRoot, config)
         def groovyRenderer = new SimpleTemplateRenderer(new File(sourceRoot, config.paths?.partials ?: "partials"))
 
-        // 3. Process content and assets
+        // Log effective directories for clarity
+        logger.lifecycle("Generating site: sourceDir={}, outputDir={}", sourceRoot.absolutePath, outputRoot.absolutePath)
+
+        // 4. Process content and assets
         processPages(sourceRoot, outputRoot, config, engine, groovyRenderer)
         processAssets(sourceRoot, outputRoot, config, engine, groovyRenderer)
 
@@ -64,8 +75,7 @@ abstract class SiteGenTask extends DefaultTask {
     /**
      * Deletes the output directory to ensure a clean build.
      */
-    private void cleanOutputDir() {
-        def outputRoot = outputDir.get().asFile
+    private void cleanOutputDir(File outputRoot) {
         if (outputRoot.exists()) {
             outputRoot.eachFileRecurse(FileType.FILES) { file ->
                 if (!file.delete()) {
@@ -213,18 +223,33 @@ abstract class SiteGenTask extends DefaultTask {
                     logger.info("Compiled SASS: {} -> {}", file.name, cssOutFile.name)
                 }
             } else {
-                // Handle all other assets (copy and apply Handlebars templating).
+                // Handle all other assets. Only template known text files; copy binaries as-is.
                 def outFile = new File(destAssets, relPath)
                 if (outFile.exists() && outFile.isDirectory()) {
                     logger.warn("Skipping asset copy for '{}'; destination is a directory: {}", file.name, outFile)
                 } else {
                     outFile.parentFile.mkdirs()
 
+                    // Determine whether to treat as text/template or binary
+                    def lowerName = file.name.toLowerCase()
+                    def dot = lowerName.lastIndexOf('.')
+                    def ext = dot >= 0 ? lowerName.substring(dot + 1) : ''
+                    def textExts = [
+                        'css', 'js', 'html', 'txt', 'svg', 'json', 'xml', 'map', 'hbs'
+                    ]
+
                     try {
-                        def rendered = SiteGenTask.renderAll(file.text, config, engine, groovyRenderer)
-                        outFile.text = rendered
+                        if (textExts.contains(ext)) {
+                            // If it's an .hbs asset, drop the .hbs extension in the output
+                            def effectiveOutFile = ext == 'hbs' ? new File(destAssets, relPath.replaceAll(/\.hbs$/, '')) : outFile
+                            def rendered = SiteGenTask.renderAll(file.text, config, engine, groovyRenderer)
+                            effectiveOutFile.text = rendered
+                        } else {
+                            // Binary or unknown type: copy bytes as-is
+                            outFile.bytes = file.bytes
+                        }
                     } catch (Exception e) {
-                        throw new GradleException("Failed to template asset file ${file.name}", e)
+                        throw new GradleException("Failed to process asset file ${file.name}", e)
                     }
                 }
             }
@@ -256,5 +281,14 @@ abstract class SiteGenTask extends DefaultTask {
         } catch (Exception e) {
             throw new GradleException("SASS compilation failed for ${inputFile.name}", e)
         }
+    }
+    private static String normalizeBaseUrlForTemplates(String raw) {
+        if (!raw) return ""
+        String base = raw.trim()
+        // Convert explicit root into empty, so templates don't produce double slashes
+        if (base == "/") return ""
+        if (!base.startsWith("/")) base = "/" + base
+        if (base.length() > 1 && base.endsWith("/")) base = base.substring(0, base.length() - 1)
+        return base
     }
 }
