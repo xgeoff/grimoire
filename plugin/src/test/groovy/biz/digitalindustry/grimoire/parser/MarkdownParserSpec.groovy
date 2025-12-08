@@ -16,5 +16,6 @@ class MarkdownParserSpec extends Specification {
         then:
         html.contains("<h1>") || html.contains("<h2>")
         html.contains("<p>")
+        html.contains("<table")
     }
 }
