@@ -3,9 +3,6 @@ package biz.digitalindustry.grimoire.task
 import biz.digitalindustry.grimoire.parser.FrontmatterParser
 import biz.digitalindustry.grimoire.parser.MarkdownParser
 import biz.digitalindustry.grimoire.SimpleTemplateRenderer
-import com.github.jknack.handlebars.Handlebars
-import com.github.jknack.handlebars.io.CompositeTemplateLoader
-import com.github.jknack.handlebars.io.FileTemplateLoader
 import groovy.io.FileType
 import io.bit3.jsass.Compiler
 import io.bit3.jsass.Options
@@ -58,16 +55,15 @@ abstract class SiteGenTask extends DefaultTask {
         // 2. Clean the effective output directory
         cleanOutputDir(outputRoot)
 
-        // 3. Initialize template engines
-        def engine = createHandlebarsEngine(sourceRoot, config)
+        // 3. Initialize the Groovy template renderer
         def groovyRenderer = new SimpleTemplateRenderer(new File(sourceRoot, config.paths?.partials ?: "partials"))
 
         // Log effective directories for clarity
         logger.lifecycle("Generating site: sourceDir={}, outputDir={}", sourceRoot.absolutePath, outputRoot.absolutePath)
 
         // 4. Process content and assets
-        processPages(sourceRoot, outputRoot, config, engine, groovyRenderer)
-        processAssets(sourceRoot, outputRoot, config, engine, groovyRenderer)
+        processPages(sourceRoot, outputRoot, config, groovyRenderer)
+        processAssets(sourceRoot, outputRoot, config, groovyRenderer)
 
         logger.lifecycle("✅ Grimoire site generation complete.")
     }
@@ -101,86 +97,41 @@ abstract class SiteGenTask extends DefaultTask {
         return new ConfigObject()
     }
 
-/**
- * Creates and configures the Handlebars template engine.
- */
-    private Handlebars createHandlebarsEngine(File sourceRoot, ConfigObject config) {
-        def layoutsDir = new File(sourceRoot, config.paths?.layouts ?: "layouts")
-        def partialsDir = new File(sourceRoot, config.paths?.partials ?: "partials")
-        def helpersDir = new File(sourceRoot, config.paths?.helpers ?: "helpers")
-
-        // --- FIX: Create loaders for both layouts and partials ---
-        def layoutLoader = new FileTemplateLoader(layoutsDir, ".hbs")
-        def partialLoader = new FileTemplateLoader(partialsDir, ".hbs")
-
-        // Combine them so Handlebars can find templates in either directory
-        def compositeLoader = new CompositeTemplateLoader(layoutLoader, partialLoader)
-        def engine = new Handlebars(compositeLoader)
-
-        // Register helpers from .groovy files (this part remains the same)
-        if (helpersDir.exists()) {
-            logger.info("Registering helpers from: {}", helpersDir)
-            helpersDir.eachFileMatch(~/.*\.groovy/) { File helperFile ->
-                def helperName = helperFile.name.replaceFirst(/\.groovy$/, "")
-                try {
-                    def script = new GroovyShell(this.class.classLoader).parse(helperFile)
-                    def helper = script.run()
-                    if (helper instanceof com.github.jknack.handlebars.Helper) {
-                        engine.registerHelper(helperName, helper)
-                        logger.debug("Registered helper: {}", helperName)
-                    } else {
-                        logger.warn("Helper file '{}' did not return a valid Handlebars Helper instance.", helperFile.name)
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed to load helper '${helperName}'", e)
-                }
-            }
-        }
-        return engine
-    }
-
     // In: src/main/groovy/biz/digitalindustry/grimoire/task/SiteGenTask.groovy
     /**
      * Finds and renders all page files (.html, .md).
      */
-    private void processPages(File sourceRoot, File outputRoot, ConfigObject config, Handlebars engine, SimpleTemplateRenderer groovyRenderer) {
+    private void processPages(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer) {
         def pagesDir = new File(sourceRoot, config.paths?.pages ?: "pages")
         def layoutDir = new File(sourceRoot, config.paths?.layouts ?: "layouts")
 
-        if (!pagesDir.exists()) return
+        if (!pagesDir.exists()) {
+            config.put("navigation", [])
+            return
+        }
 
         config.put("pagesDir", pagesDir)
+        config.put("navigation", buildNavigation(pagesDir))
         logger.lifecycle("Processing pages from: {}", pagesDir)
         pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
             try {
                 def parsed = FrontmatterParser.parse(pageFile)
                 def pageContext = parsed.metadata
                 def mergedContext = config + pageContext
+                mergedContext.site = config
 
-                def renderedContent
-                if (pageFile.name.endsWith(".md")) {
-                    def templatedMarkdown = SiteGenTask.renderAll(parsed.content, mergedContext, engine, groovyRenderer)
-                    renderedContent = MarkdownParser.toHtml(templatedMarkdown)
-                } else {
-                    renderedContent = SiteGenTask.renderAll(parsed.content, mergedContext, engine, groovyRenderer)
-                }
+                def templatedContent = groovyRenderer.render(parsed.content, mergedContext)
+                def renderedContent = pageFile.name.endsWith(".md") ? MarkdownParser.toHtml(templatedContent) : templatedContent
 
                 def layoutName = pageContext.layout ?: "default"
-                def layoutFile = new File(layoutDir, "${layoutName}.hbs")
                 def groovyLayoutFile = new File(layoutDir, "${layoutName}.gtpl")
 
-                String finalOutput
-                if (layoutFile.exists()) {
-                    // Compile by name, letting the loader find the file
-                    def layoutTemplate = engine.compile(layoutName)
-                    def hbOutput = layoutTemplate.apply(mergedContext + [content: renderedContent])
-                    finalOutput = groovyRenderer.render(hbOutput, mergedContext + [content: renderedContent])
-                } else if (groovyLayoutFile.exists()) {
-                    def layoutText = groovyLayoutFile.text
-                    finalOutput = SiteGenTask.renderAll(layoutText, mergedContext + [content: renderedContent], engine, groovyRenderer)
-                } else {
+                if (!groovyLayoutFile.exists()) {
                     throw new GradleException("Layout not found: ${layoutName} for page ${pageFile.name}")
                 }
+
+                def layoutText = groovyLayoutFile.text
+                def finalOutput = groovyRenderer.render(layoutText, mergedContext + [content: renderedContent])
 
                 def outFile = new File(outputRoot, pageFile.name.replaceAll(/\.(html|md)$/, '.html'))
                 if (outFile.exists() && outFile.isDirectory()) {
@@ -202,7 +153,7 @@ abstract class SiteGenTask extends DefaultTask {
      * Copies and processes all asset files.
      * This version is refactored to be compatible with Gradle's configuration cache.
      */
-    private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, Handlebars engine, SimpleTemplateRenderer groovyRenderer) {
+    private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer) {
         def assetsDir = new File(sourceRoot, config.paths?.assets ?: "assets")
         if (!assetsDir.exists()) return
 
@@ -235,15 +186,13 @@ abstract class SiteGenTask extends DefaultTask {
                     def dot = lowerName.lastIndexOf('.')
                     def ext = dot >= 0 ? lowerName.substring(dot + 1) : ''
                     def textExts = [
-                        'css', 'js', 'html', 'txt', 'svg', 'json', 'xml', 'map', 'hbs'
+                        'css', 'js', 'html', 'txt', 'svg', 'json', 'xml', 'map'
                     ]
 
                     try {
                         if (textExts.contains(ext)) {
-                            // If it's an .hbs asset, drop the .hbs extension in the output
-                            def effectiveOutFile = ext == 'hbs' ? new File(destAssets, relPath.replaceAll(/\.hbs$/, '')) : outFile
-                            def rendered = SiteGenTask.renderAll(file.text, config, engine, groovyRenderer)
-                            effectiveOutFile.text = rendered
+                            def rendered = groovyRenderer.render(file.text, config)
+                            outFile.text = rendered
                         } else {
                             // Binary or unknown type: copy bytes as-is
                             outFile.bytes = file.bytes
@@ -254,14 +203,6 @@ abstract class SiteGenTask extends DefaultTask {
                 }
             }
         }
-    }
-
-    /**
-     * Applies both Handlebars and Groovy simple templating to the given text.
-     */
-    private static String renderAll(String template, Map<String, Object> context, Handlebars engine, SimpleTemplateRenderer groovyRenderer) {
-        def hbResult = engine.compileInline(template).apply(context)
-        return groovyRenderer.render(hbResult, context)
     }
 
     /**
@@ -281,6 +222,34 @@ abstract class SiteGenTask extends DefaultTask {
         } catch (Exception e) {
             throw new GradleException("SASS compilation failed for ${inputFile.name}", e)
         }
+    }
+
+    private List<Map<String, Object>> buildNavigation(File pagesDir) {
+        if (!pagesDir?.exists() || !pagesDir.isDirectory()) {
+            return []
+        }
+        return buildNavigationEntries(pagesDir, pagesDir)
+    }
+
+    private List<Map<String, Object>> buildNavigationEntries(File dir, File root) {
+        def items = []
+        dir.eachFile { file ->
+            if (file.directory) {
+                def children = buildNavigationEntries(file, root)
+                if (children) {
+                    items << [type: 'directory', name: file.name, children: children]
+                }
+            } else if (file.name ==~ /(?i).*\.(md|html?)$/) {
+                def relativePath = root.toPath().relativize(file.toPath()).toString().replace(File.separator, "/")
+                def name = file.name.replaceFirst(/(?i)\.(md|html?)$/, "")
+                def path = relativePath.replaceFirst(/(?i)\.(md|html?)$/, "")
+                items << [type: 'file', name: name, path: path]
+            }
+        }
+        items.sort { a, b ->
+            a.type <=> b.type ?: a.name.toLowerCase() <=> b.name.toLowerCase()
+        }
+        return items
     }
     private static String normalizeBaseUrlForTemplates(String raw) {
         if (!raw) return ""

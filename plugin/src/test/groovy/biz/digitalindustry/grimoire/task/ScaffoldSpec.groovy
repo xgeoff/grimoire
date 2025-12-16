@@ -38,8 +38,8 @@ class ScaffoldSpec extends Specification {
 
         then: "The scaffold structure is created in the project root"
         new File(testProjectDir, "pages/index.html").exists()
-        new File(testProjectDir, "layouts/default.hbs").exists()
-        new File(testProjectDir, "assets/style.css").exists()
+        new File(testProjectDir, "layouts/default.gtpl").exists()
+        new File(testProjectDir, "assets/css/style.css").exists()
 
         and: "The config file points to the current directory"
         def configFile = new File(testProjectDir, "config.grim")
@@ -62,8 +62,8 @@ class ScaffoldSpec extends Specification {
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
         assert new File(scaffoldRoot, "pages/index.html").exists()
-        assert new File(scaffoldRoot, "layouts/default.hbs").exists()
-          assert new File(scaffoldRoot, "assets/style.css").exists()
+        assert new File(scaffoldRoot, "layouts/default.gtpl").exists()
+          assert new File(scaffoldRoot, "assets/css/style.css").exists()
           assert !new File(scaffoldRoot, "config.grim").exists()
 
           and: "The config file has the correct source directory"
@@ -88,8 +88,8 @@ class ScaffoldSpec extends Specification {
 
         then: "The build succeeds and the existing file is overwritten"
         existingFile.text.contains("Welcome to")
-        new File(testProjectDir, "layouts/default.hbs").exists()
-        new File(testProjectDir, "assets/style.css").exists()
+        new File(testProjectDir, "layouts/default.gtpl").exists()
+        new File(testProjectDir, "assets/css/style.css").exists()
     }
 
     def "scaffolds in non-empty directory preserving existing files"() {
@@ -106,8 +106,8 @@ class ScaffoldSpec extends Specification {
 
         then: "The scaffold structure is created and the existing file is preserved"
         new File(testProjectDir, "pages/index.html").exists()
-        new File(testProjectDir, "layouts/default.hbs").exists()
-        new File(testProjectDir, "assets/style.css").exists()
+        new File(testProjectDir, "layouts/default.gtpl").exists()
+        new File(testProjectDir, "assets/css/style.css").exists()
         existing.text == "original"
         and:
         def configFile = new File(testProjectDir, "config.grim")
@@ -142,8 +142,8 @@ class ScaffoldSpec extends Specification {
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
         assert new File(scaffoldRoot, "pages/index.html").exists()
-        assert new File(scaffoldRoot, "layouts/default.hbs").exists()
-        assert new File(scaffoldRoot, "assets/style.css").exists()
+        assert new File(scaffoldRoot, "layouts/default.gtpl").exists()
+        assert new File(scaffoldRoot, "assets/css/style.css").exists()
 
         and: "The config file has the default source directory"
         def configFile = new File(testProjectDir, "config.grim")
@@ -176,8 +176,8 @@ class ScaffoldSpec extends Specification {
         def scaffoldRoot = new File(testProjectDir, targetDirName)
         assert scaffoldRoot.isDirectory()
         assert new File(scaffoldRoot, "pages/index.html").exists()
-        assert new File(scaffoldRoot, "layouts/default.hbs").exists()
-        assert new File(scaffoldRoot, "assets/style.css").exists()
+        assert new File(scaffoldRoot, "layouts/default.gtpl").exists()
+        assert new File(scaffoldRoot, "assets/css/style.css").exists()
 
         and: "The config file has the correct source directory"
         def configFile = new File(testProjectDir, "config.grim")

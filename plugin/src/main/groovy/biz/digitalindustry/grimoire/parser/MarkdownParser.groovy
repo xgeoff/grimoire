@@ -14,7 +14,7 @@ class MarkdownParser {
     static String toHtml(String markdown) {
         def document = parser.parse(markdown)
         def html = renderer.render(document)
-        // Unescape HTML entities that may appear inside Handlebars helpers
+        // Unescape HTML entities that may appear inside Groovy template output
         html.replace('&quot;', '"')
     }
 }

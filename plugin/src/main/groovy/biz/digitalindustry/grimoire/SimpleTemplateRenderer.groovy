@@ -21,10 +21,7 @@ class SimpleTemplateRenderer {
     }
 
     String render(String template, Map<String, Object> context) {
-        if (!template.contains('$')) {
-            return template
-        }
-        def hasSyntax = (template =~ /\$\{[^}]+\}/) || (template =~ /(?m)\$[A-Za-z_][A-Za-z0-9_]*/)
+        def hasSyntax = (template =~ /\$\{[^}]+\}/) || (template =~ /(?m)\$[A-Za-z_][A-Za-z0-9_]*/) || template.contains('<%')
         if (!hasSyntax) {
             return template
         }

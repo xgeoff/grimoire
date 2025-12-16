@@ -4,7 +4,7 @@ layout = "default"
 author = "Jane"
 ---
 
-# {{title}}
+# ${title}
 
 Grimoire is a **Groovy-powered static site generator** that **supports Markdown**.
 

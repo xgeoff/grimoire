@@ -67,22 +67,25 @@ class SiteGenPluginSpec extends Specification {
         assert outputFile.exists()
 
         // Check the content
-        assert outputFile.text.contains("Test-Bot")
+        def html = outputFile.text
+        assert html.contains("Test-Bot")
+        assert html.contains("/test/markdown-support.html")
     }
 
-    def "helper quoted arguments render without HTML entities"() {
-        when: "grim-gen processes markdown with helpers"
+    def "groovy templates render inline scripts"() {
+        when: "grim-gen processes pages with Groovy templating"
         GradleRunner.create()
                 .withProjectDir(testDir.toFile())
                 .withArguments("grim-gen", "--stacktrace")
                 .withPluginClasspath()
                 .build()
 
-        then: "Rendered page contains helper output without &quot; entities"
-        def outputFile = new File(testDir.toFile(), "public/quoted-helper.html")
+        then: "Rendered page contains Groovy-evaluated HTML"
+        def outputFile = new File(testDir.toFile(), "public/groovy-callout.html")
         outputFile.exists()
-        outputFile.text.contains("<div>")
-        !outputFile.text.contains("&quot;")
+        def html = outputFile.text
+        html.contains('class="callout primary"')
+        !html.contains('&lt;')
     }
 
     def "skips page generation when destination is directory"() {

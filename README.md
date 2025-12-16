@@ -1,84 +1,102 @@
-## Grimoire: A Simple, Scriptable Static Site Generator for Gradle
+## Grimoire: A Groovy-First Static Site Generator for Gradle
 
-Grimoire is a lightweight and powerful static site generator built as a Gradle plugin. It's designed for developers who want to create fast, modern websites—like blogs, documentation, or portfolios—without leaving their existing build environment. By leveraging the power of Gradle and Groovy, Grimoire offers a deeply scriptable and customizable experience.
+Grimoire is a lightweight Gradle plugin that turns Markdown and HTML content into fully rendered static sites. Instead of juggling multiple templating engines, Grimoire leans entirely on Groovy's `SimpleTemplateEngine`. That means every layout, partial, and page is just HTML with `${groovy}` expressions, allowing you to keep markup readable while still dropping in dynamic values where needed.
 
-At its core, Grimoire uses the popular Handlebars.java templating engine, then runs the result through Groovy's `SimpleTemplateEngine`. This lets you mix `{{handlebars}}` helpers with `${groovy}` interpolation in the same file. Content can be written in standard Markdown or HTML, and the plugin follows a simple convention-over-configuration approach, allowing you to get started quickly with a sensible project structure while still providing the flexibility to configure paths and build processes to fit your needs.
+Each project ships with an HTML-first layout that you can customize immediately. The default scaffold uses the following Groovy template for `layouts/default.gtpl`:
 
-Whether you're building a personal blog or a project documentation site, Grimoire provides the tools to generate your static content efficiently, right from your Gradle build.
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs -->
+    <meta charset="utf-8">
+    <title>${title ?: 'Grimoire Site'}</title>
+    <meta name="description" content="${description ?: ''}">
+    <meta name="author" content="${author?.name ?: ''}">
+
+    <!-- Mobile Specific Metas -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT -->
+    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="images/favicon-32.png">
+</head>
+<body>
+<div class="shell">
+    ${partial('sidebar')}
+    <main class="container prose">
+${content}
+    </main>
+</div>
+</body>
+</html>
+```
+
+Every layout renders HTML as-is, and Groovy expressions (`${...}` or `<% ... %>`) handle dynamic values such as titles, navigation, or conditional blocks. The `${content}` slot receives the rendered page body, letting you keep your pages focused on Markdown/HTML content.
 
 ### Project Structure
 
-A typical Grimoire project follows this structure:
+A typical Grimoire project looks like this:
 ```
-<project-root>/ 
-|-- pages/             ← HTML or Markdown input content
-|-- layouts/           ← Handlebars (.hbs) or Groovy (.gtpl) layouts
-|-- partials/          ← Optional Handlebars (.hbs) or Groovy (.gtpl) partials
-|-- data/              ← Optional page data (YAML/JSON/Groovy)
-|-- assets/            ← CSS/JS/images to copy as-is
-|-- public/            ← Final rendered output (or configurable)
+<project-root>/
+|-- pages/             ← Markdown or HTML pages with optional Groovy front matter
+|-- layouts/           ← Groovy layout templates (`.gtpl`)
+|-- partials/          ← Groovy partials (`.gtpl`) referenced via `${partial('name')}`
+|-- data/              ← Optional structured data (JSON/YAML/Groovy) merged into context
+|-- assets/            ← Copied to the output directory; CSS/JS can also use Groovy
+|-- public/            ← Generated site (configurable)
 ```
 
-| Component     | Technology                                                   |
-| ------------- |--------------------------------------------------------------|
-| Templating    | [Handlebars.java](https://github.com/jknack/handlebars.java) + Groovy `SimpleTemplateEngine` |
-| Gradle Plugin | Written in Groovy                                            |
-| Task          | `grim`                                                       |
-| Page Input    | HTML, Markdown                                               |
-| Metadata      | Optional Groovy  front matter                                |
-| Output        | `public/` directory (configurable)                           |
+| Component     | Technology / Behavior                                        |
+| ------------- | ------------------------------------------------------------- |
+| Templating    | Groovy `SimpleTemplateEngine` (`.gtpl`, `${}` + `<% %>`)      |
+| Gradle Plugin | Groovy                                                        |
+| Task          | `grim`                                                        |
+| Page Input    | Markdown (`.md`) or HTML (`.html`) with Groovy expressions     |
+| Metadata      | Groovy front matter (at the top of `.md`/`.html` files)       |
+| Output        | `public/` directory (configurable)                            |
 
-| File Type                      | Default Action                  | Optional Processing           | Notes |
-| ------------------------------ | ------------------------------- | ----------------------------- | ----- |
-| `.css`, `.js`, `.png`, `.jpg`  | Copy as-is                      | None (default)                |       |
-| `.scss`, `.sass`               | Compile to `.css`               | ✅ SASS processor              |       |
-| `.hbs` or `.html` under assets | Handlebars rendering (optional) | 🔶 Only if explicitly flagged |       |
-| Other binary files             | Copy as-is                      | Skip processing               |       |
+Text assets such as `.css`, `.js`, `.html`, `.txt`, `.svg`, `.json`, `.xml`, and source maps run through the Groovy renderer, so you can interpolate variables anywhere. Binary assets are copied as-is. SASS/SCSS files under `assets/` are compiled to CSS automatically.
 
-| Feature            | Behavior                                              |
-| ------------------ | ----------------------------------------------------- |
-| Partials directory | `site/partials/` (configurable later)                 |
-| File naming        | `header.hbs` → referenced as `{{> header}}`           |
-| Usage              | Can be used in layouts, pages, or other partials      |
-| Registration       | Automatically load all `.hbs` files from partials dir |
+### Groovy Templates & Partials
 
-### Groovy Templates
-
-After Handlebars rendering, Grimoire evaluates the result with Groovy's `SimpleTemplateEngine`. This enables `${}` interpolation and Groovy-based partials alongside Handlebars syntax.
-
-#### Example
+Because everything is Groovy, you can freely mix inline scripts and expressions:
 
 ```html
-<h1>{{title}}</h1>
-<p>Hello ${title}</p>
+---
+title = "Docs"
+layout = "default"
+---
+
+<%
+def sections = ['Intro', 'Getting Started', 'API']
+%>
+<h1>${title}</h1>
+<ul>
+<% sections.each { %>
+    <li>${it}</li>
+<% } %>
+</ul>
 ```
 
-#### Groovy Layouts and Partials
-
-* Layouts may be written as `.gtpl` files. When both `default.hbs` and `default.gtpl` exist, `.hbs` is preferred.
-* Groovy partials live in the same `partials/` directory but use the `.gtpl` extension.
-* Include a Groovy partial with the special `partial` closure:
+Partials live in `partials/*.gtpl` and are available through the `partial` closure:
 
 ```html
-${partial('footer', [copy: '2024'])}
+${partial('sidebar', [navigation: navigation])}
 ```
 
-and in `partials/footer.gtpl`:
-
-```html
-<footer>${copy}</footer>
-```
-
-The page/front‑matter context is merged with the optional map passed to `partial`, so values defined in `config.grim` or page metadata are available.
-
+Inside a partial you still have access to the full site context, including a `navigation` tree that Grimoire builds from the `pages/` directory. Each navigation item includes `type` (`file` or `directory`), `name`, `path` (without extension), and optional `children`, making it easy to loop through sections when rendering menus.
 
 ## Getting Started
 
-The `biz.digitalindustry.grimoire` Gradle plugin helps you build static sites using Markdown or HTML templates with Handlebars-style layouts and partials.
-
 ### 1. Include the Plugin
-
-To use the Grimoire plugin in your project, add the following to your `build.gradle`:
 
 ```groovy
 plugins {
@@ -86,128 +104,78 @@ plugins {
 }
 ```
 
-### 2. Scaffold a New Site Project
+### 2. Scaffold a Site
 
-To scaffold a new project structure in the current directory, run:
+Generate the starter structure in the current directory:
 
 ```bash
 ./gradlew grim-init
 ```
 
-This will generate a basic site structure alongside your existing files:
-
-```
-<project-root>/
-├── config.grim            # Groovy-based site configuration
-├── pages/                 # Markdown or HTML page files
-├── layouts/               # Handlebars (.hbs) or Groovy (.gtpl) layouts
-├── partials/              # Optional Handlebars or Groovy partials
-└── data/                  # Optional data in JSON/YAML/Groovy
-```
-
-Use `--dest` to scaffold into a specific subdirectory:
+Use `--dest` to scaffold into a subdirectory:
 
 ```bash
-./gradlew grim-init --dest=my-docs
+./gradlew grim-init --dest=docs
 ```
 
-Existing files are left untouched; the task skips files that already exist to avoid overwriting.
+The scaffold provides Groovy layouts/partials, CSS placeholders, a favicon, and a `config.grim` ready for customization.
 
-### 3. Build Your Site
+### 3. Build the Site
 
-Once your content is ready, you can generate the site using:
+Once content is ready, run:
 
 ```bash
 ./gradlew grim
 ```
 
-The rendered site will be output to:
+The rendered HTML lands in `public/` by default.
 
-```
-public
-```
+### 4. Preview with `grim-serve`
 
-You can change this output location via `config.grim` using the `outputDir` property.
-
-### 4. Preview with Built-in Server
-
-To preview your site locally:
+Start a local server (defaults to `http://localhost:8080`):
 
 ```bash
 ./gradlew grim-serve
 ```
 
-The server will default to `http://localhost:8080` unless configured otherwise in `config.grim`.
+If your site lives under a subpath (e.g., GitHub Pages project sites), set `baseUrl` in `config.grim`. Grimoire normalizes `/` to an empty string for templates, so `${baseUrl}` will either be `""` or a value like `"/docs"`. The dev server mirrors this path so local URLs match production.
 
-#### Base URL (subpath) support
+### 5. Configure
 
-If your site is deployed under a subpath (e.g., GitHub Pages project sites), set `baseUrl` in `config.grim`. The dev server will serve your site under the same subpath so local URLs match production.
-
-Examples:
-
-```groovy
-// Root site (default)
-baseUrl = "/"            // Local: http://localhost:8080/
-
-// Subpath (either form is accepted)
-baseUrl = "arden"        // Local: http://localhost:8080/arden
-// or
-baseUrl = "/arden"      // Local: http://localhost:8080/arden
-
-server { port = 8080 }
-```
-
-Notes:
-- For GitHub Pages project sites use `baseUrl = "/<repo-name>"`.
-- For user/org root sites use `baseUrl = "/"`.
-- `baseUrl` is normalized (leading slash added, trailing slash removed). Templates see an empty string when `baseUrl` is root to avoid `//path` links.
-- The starter templates already prefix links with `{{@root.baseUrl}}` when present.
-
-### 5. Customize Your Site
-Grimoire reads configuration from a `config.grim` file located in the
-project root. The file is a Groovy script, allowing you to tailor the
-build process programmatically. Common options include tweaking
-directories and the port used by the preview server:
-
+`config.grim` is a regular Groovy script. Common options:
 
 ```groovy
 // config.grim
-sourceDir = "docs"        // Where your content lives
-outputDir = "public"      // Build destination
+sourceDir = "site"
+outputDir = "public"
+baseUrl = "/docs"
+
+author = [name: 'Ada', year: 2024]
 
 paths {
-    pages    = "pages"    // Content pages
-    layouts  = "layouts"  // Handlebars (.hbs) or Groovy (.gtpl) layouts
-    partials = "partials" // Reusable snippets (.hbs/.gtpl)
-    helpers  = "helpers"  // Groovy Handlebars helpers
-    assets   = "assets"   // Static files
+    pages    = "pages"
+    layouts  = "layouts"
+    partials = "partials"
+    assets   = "assets"
 }
 
 server {
-    port = 9000           // Used by `grim-serve`
+    port = 9000
 }
 ```
 
-Each block is optional—omit it to use the defaults. Helpers placed in
-the `helpers/` directory are automatically compiled and registered,
-while partials in `partials/` are available via the familiar
-`{{> partialName}}` syntax. Front matter in pages provides per-page
-metadata such as titles or layouts.
+Entirely omit blocks you don't need—the defaults cover most sites.
 
-### Configuration Rules
-- Single source of truth: `config.grim` controls all site behavior (paths, server, etc.).
-- The Gradle block only points to the config file:
-  - Groovy DSL:
-    - `grimoire { configFile = file("config/prod.grim") }`
-- Do not duplicate configuration in `build.gradle`; set directories and options in `config.grim`.
-- Typical multi‑env setup: keep `config.grim` as default, add `config/prod.grim`, and switch via the block above.
+### Tips
 
----
+- Pages use Groovy front matter for metadata: wrap the opening block with `---` lines.
+- Templates can call `${partial('name')}` and pass additional bindings with a map.
+- `navigation` holds the full tree of pages/sections so you can easily build menus.
+- Markdown is rendered after Groovy templating so expressions work inside `.md` files.
 
 ## Development
 
-This repository contains the Grimoire Gradle plugin. Run the full test
-suite with:
+This repository contains the Grimoire Gradle plugin. Run the full suite with:
 
 ```bash
 ./gradlew check
