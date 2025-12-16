@@ -2,31 +2,45 @@ package biz.digitalindustry.grimoire.task
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import groovy.util.ConfigObject
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.Property
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import javax.inject.Inject
 
 import java.net.InetSocketAddress
 import java.nio.file.Files
 
 abstract class ServeTask extends DefaultTask {
 
+    @Inject
+    abstract ProjectLayout getLayout()
+
+    @InputFile
+    abstract RegularFileProperty getConfigFile()
+
+    @Internal
+    abstract DirectoryProperty getWebRootDir()
+
     private HttpServer server
+
+    @Internal
+    HttpServer getServer() { server }
+
+    ServeTask() {
+        getConfigFile().convention(getLayout().projectDirectory.file("config.grim"))
+        getWebRootDir().convention(getLayout().projectDirectory.dir("public"))
+    }
 
     @TaskAction
     void serve() {
-        def configFile = new File(project.layout.projectDirectory.asFile, "config.grim")
-        ConfigObject config = new ConfigSlurper().parse(configFile.toURI().toURL())
+        def config = new ConfigSlurper().parse(getConfigFile().get().asFile.toURI().toURL())
         // This must be final so the closure can safely capture it.
-        final File webRootDir = config.outputDir ? new File(project.layout.projectDirectory.asFile, config.outputDir) : new File(project.layout.projectDirectory.asFile, "public")
+        File webRootDir = config.outputDir ? getLayout().projectDirectory.dir(config.outputDir).asFile : getWebRootDir().get().asFile
 
         if (!webRootDir.exists() || !webRootDir.isDirectory())
             throw new GradleException("Web root directory to serve not found or not a directory: ${webRootDir.absolutePath}. Please run 'grim-gen' first.")
@@ -37,12 +51,34 @@ abstract class ServeTask extends DefaultTask {
             exchange.responseBody.withStream { it.write(response) }
         }
 
-        // Define handler closure inside the method to correctly capture the web root directory.
+        // Normalize base path for the HTTP context ("/" or "/subpath")
+        String basePath = normalizeBasePathForServer(config.baseUrl as String)
+
+        // Define handler closure inside the method to correctly capture the web root directory
+        // and the normalized base path.
         def handler = { HttpExchange exchange ->
             try {
+                def requestPath = exchange.requestURI.path ?: "/"
 
-                def requestPath = exchange.requestURI.path
-                def effectivePath = (!requestPath || requestPath == '/') ? 'index.html' : requestPath.substring(1)
+                // If the request exactly matches the base path (e.g., "/arden"),
+                // redirect to the trailing-slash form ("/arden/") so that relative
+                // URLs in the HTML resolve under the subpath instead of root.
+                if (basePath != "/" && requestPath == basePath) {
+                    def redirectTo = basePath + "/"
+                    exchange.responseHeaders.set("Location", redirectTo)
+                    exchange.sendResponseHeaders(301, -1)
+                    exchange.close()
+                    return
+                }
+
+                // Strip the configured base path so we can map to files under webRootDir
+                String localPath = requestPath
+                if (basePath != "/" && requestPath.startsWith(basePath)) {
+                    localPath = requestPath.substring(basePath.length())
+                    if (localPath.isEmpty()) localPath = "/"
+                }
+
+                def effectivePath = (localPath == "/") ? 'index.html' : (localPath.startsWith('/') ? localPath.substring(1) : localPath)
                 def requestedFile = new File(webRootDir, effectivePath)
 
                 if (!requestedFile.canonicalPath.startsWith(webRootDir.canonicalPath)) {
@@ -67,19 +103,40 @@ abstract class ServeTask extends DefaultTask {
             }
         }
 
-        def baseUrl = config.baseUrl ?: "/"
+        def baseUrl = basePath
         def port = config.server?.port ?: 8080
         this.server = HttpServer.create(new InetSocketAddress(port), 0)
         server.createContext(baseUrl, handler as com.sun.net.httpserver.HttpHandler)
         server.executor = null
         server.start()
 
-        logger.lifecycle("Grimoire server started on http://localhost:${port}")
+        def displayUrl = "http://localhost:${port}" + (baseUrl == "/" ? "" : baseUrl)
+        logger.lifecycle("Grimoire server started on ${displayUrl}")
         logger.lifecycle("Serving files from: ${webRootDir.absolutePath}")
         logger.lifecycle("Press Ctrl+C to stop the server.")
 
-        // This will block until the thread is interrupted or server is stopped
-        Thread.currentThread().join()
+        // Block until interrupted (e.g., Ctrl+C) and then stop the server.
+        // Using sleep in a loop allows Gradle to interrupt the task thread
+        // on cancellation, ensuring we can cleanly close the socket.
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                Thread.sleep(1000)
+            }
+        } catch (InterruptedException ignored) {
+            // Gradle cancels tasks by interrupting their threads
+            Thread.currentThread().interrupt()
+        } finally {
+            stopServer()
+        }
+    }
+
+    private static String normalizeBasePathForServer(String raw) {
+        if (!raw) return "/"
+        String base = raw.trim()
+        if (!base.startsWith("/")) base = "/" + base
+        // Remove trailing slash except for root
+        if (base.length() > 1 && base.endsWith("/")) base = base.substring(0, base.length() - 1)
+        return base
     }
 
     void stopServer() {
@@ -88,7 +145,8 @@ abstract class ServeTask extends DefaultTask {
             // This gives the server up to 1 second to finish any active
             // requests gracefully, which prevents the race condition.
             server.stop(1)
-            logger.info("Server stopped by test.")
+            server = null
+            logger.info("Server stopped.")
         }
     }
 }

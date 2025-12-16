@@ -6,7 +6,8 @@ import com.vladsch.flexmark.parser.Parser
 
 class MarkdownParser {
 
-    private static final List extensions = [TablesExtension.create()]
+    // Enable Markdown table support (and ensure renderer knows about it)
+    static final def extensions = [TablesExtension.create()]
     static final Parser parser = Parser.builder().extensions(extensions).build()
     static final HtmlRenderer renderer = HtmlRenderer.builder().extensions(extensions).build()
 
