@@ -18,3 +18,7 @@ out/
 
 # Local machine-specific files
 .DS_Store
+
+# Never check in keys or local gradle config
+*.key
+*.asc

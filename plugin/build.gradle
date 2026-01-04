@@ -4,14 +4,18 @@
  * This generated file contains a sample Gradle plugin project to get you started.
  * For more details on writing Custom Plugins, please refer to https://docs.gradle.org/8.6/userguide/custom_plugins.html in the Gradle documentation.
  */
-
 plugins {
     // Apply the Java Gradle plugin development plugin to add support for developing Gradle plugins
     id 'java-gradle-plugin'
 
     // Apply the Groovy plugin to add support for Groovy
     id 'groovy'
+    id 'maven-publish'
+    id 'signing'
 }
+
+group = 'biz.digitalindustry'         // Must match your verified groupId
+version = '0.1.0'                     // Semantic version, no -SNAPSHOT
 
 repositories {
     // Use Maven Central for resolving dependencies.
@@ -66,4 +70,249 @@ tasks.named('check') {
 tasks.named('test') {
     // Use JUnit Jupiter for unit tests.
     useJUnitPlatform()
+}
+
+task sourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from(sourceSets.main.allSource)
+}
+
+task javadocJar(type: Jar) {
+    dependsOn(tasks.named('javadoc'))
+    archiveClassifier.set('javadoc')
+    from(tasks.named('javadoc'))
+}
+
+// Avoid duplicate coordinates when publishing to Maven Local; keep only the plugin publication.
+tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenLocal).configureEach {
+    onlyIf { publication?.name == 'pluginMaven' }
+}
+def centralBundleRepoName = 'CentralBundle'
+def centralBundleRepoDir = layout.buildDirectory.dir('central-bundle-repo')
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'grimoire'
+            from components.java
+
+            pom {
+                name = 'Grimoire Gradle Plugin'
+                description = 'A Gradle plugin for static site generation using Markdown, Sass, and Elian glyphs'
+                url = 'https://github.com/xgeoff/grimoire'
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'xgeoff'
+                        name = 'Geoff P'
+                        email = 'xgeoff@gmail.com'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/xgeoff/grimoire.git'
+                    developerConnection = 'scm:git:ssh://github.com:xgeoff/grimoire.git'
+                    url = 'https://github.com/xgeoff/grimoire'
+                }
+            }
+            artifact(tasks.named('sourcesJar'))
+            artifact(tasks.named('javadocJar'))
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'MavenCentral'
+            url = uri('https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/')
+            credentials {
+                username = findProperty('mavenCentralUsername')
+                password = findProperty('mavenCentralPassword')
+            }
+        }
+        maven {
+            name = centralBundleRepoName
+            url = centralBundleRepoDir
+        }
+    }
+}
+
+// Only stage the primary publication into the local bundle repo.
+def centralBundlePublications = publishing.publications.matching { it.name == 'mavenJava' }
+def bundlePublicationTasks = centralBundlePublications.collect { pub ->
+    tasks.named("publish${pub.name.capitalize()}PublicationTo${centralBundleRepoName}Repository")
+}
+
+// Prevent non-grimoire publications from staging into the bundle repository.
+tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
+    if (repository.name == centralBundleRepoName && publication.name != 'mavenJava') {
+        enabled = false
+    }
+}
+
+tasks.register('cleanCentralBundleRepo', Delete) {
+    delete centralBundleRepoDir
+}
+
+tasks.register('publishToCentralBundle') {
+    description = 'Publishes the configured publications into a local bundle layout.'
+    dependsOn(tasks.named('cleanCentralBundleRepo'))
+    dependsOn(bundlePublicationTasks)
+}
+
+tasks.register('centralBundle', Zip) {
+    description = 'Zips the generated repository layout for manual bundle uploads.'
+    dependsOn(tasks.named('publishToCentralBundle'))
+    from(centralBundleRepoDir)
+    archiveFileName.set("central-bundle-${project.name}-${project.version}.zip")
+    destinationDirectory.set(layout.buildDirectory.dir('distributions'))
+}
+
+    tasks.register('uploadCentralBundle') {
+    description = 'Uploads the central bundle to Sonatype via the Portal Publisher API.'
+    dependsOn(tasks.named('centralBundle'))
+
+    doLast {
+        def requireProperty = { String name ->
+            def prop = providers.gradleProperty(name)
+            if (!prop.isPresent()) {
+                throw new GradleException("Missing required Gradle property '${name}'.")
+            }
+            prop.get()
+        }
+
+        def tokenName = requireProperty('sonatypePublisherTokenName')
+        def tokenPassword = requireProperty('sonatypePublisherTokenPassword')
+        def publishingType = providers.gradleProperty('sonatypePublisherPublishingType')
+            .orElse('USER_MANAGED')
+            .get()
+        def bundleName = providers.gradleProperty('sonatypePublisherBundleName')
+            .orElse("${project.name}-${project.version}")
+            .get()
+        def uploadUrl = providers.gradleProperty('sonatypePublisherUploadUrl')
+            .orElse('https://central.sonatype.com/api/v1/publisher/upload')
+            .get()
+
+        def boundary = "CentralBundle${System.nanoTime()}"
+        def bundleFile = tasks.named('centralBundle', Zip).get().archiveFile.get().asFile
+        def prefix = "--${boundary}\r\n" +
+            "Content-Disposition: form-data; name=\"bundle\"; filename=\"${bundleFile.name}\"\r\n" +
+            "Content-Type: application/octet-stream\r\n\r\n"
+        def suffix = "\r\n--${boundary}--\r\n"
+
+        def queryParams = [
+            "publishingType=${java.net.URLEncoder.encode(publishingType, 'UTF-8')}",
+            "name=${java.net.URLEncoder.encode(bundleName, 'UTF-8')}"
+        ]
+        def separator = uploadUrl.contains('?') ? '&' : '?'
+        def targetUrl = "${uploadUrl}${separator}${queryParams.join('&')}"
+
+        def authValue = java.util.Base64.getEncoder()
+            .encodeToString("${tokenName}:${tokenPassword}".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+
+        println("Uploading central bundle to ${targetUrl}")
+
+        def client = java.net.http.HttpClient.newBuilder().build()
+        def request = java.net.http.HttpRequest.newBuilder()
+            .uri(new URI(targetUrl))
+            .header('Authorization', "Bearer ${authValue}")
+            .header('Content-Type', "multipart/form-data; boundary=${boundary}")
+            .POST(java.net.http.HttpRequest.BodyPublishers.concat(
+                java.net.http.HttpRequest.BodyPublishers.ofByteArray(prefix.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                java.net.http.HttpRequest.BodyPublishers.ofFile(bundleFile.toPath()),
+                java.net.http.HttpRequest.BodyPublishers.ofByteArray(suffix.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+            ))
+            .build()
+
+        def response = client.send(
+            request,
+            java.net.http.HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8)
+        )
+
+        if (response.statusCode() >= 400) {
+            throw new GradleException("Central bundle upload failed (${response.statusCode()}): ${response.body()}")
+        }
+
+        println("Central bundle uploaded (deployment ID: ${response.body().trim()})")
+    }
+}
+
+def skipSigningForMavenLocal = gradle.startParameter.taskNames.any { it.toLowerCase().contains('publishtomavenlocal') }
+if (!skipSigningForMavenLocal) {
+    signing {
+        def passphrase = providers.gradleProperty('signing.password').orNull
+
+        def secretKey = null
+        def base64Key = providers.gradleProperty('signing.secretKeyRingFileBase64').orNull
+        if (base64Key) {
+            try {
+                secretKey = new String(base64Key.decodeBase64(), 'UTF-8')
+            } catch (Exception e) {
+                throw new GradleException("Signing key base64 could not be decoded: ${e.message}")
+            }
+        }
+        if (!secretKey) {
+            secretKey = providers.gradleProperty('signing.secretKey').orNull
+        }
+
+        if (!secretKey) {
+            throw new GradleException('Signing key is missing. Provide signing.secretKeyRingFileBase64 (base64 of your armored private key) or signing.secretKey (armored private key).')
+        }
+        if (!secretKey.contains('BEGIN PGP PRIVATE KEY BLOCK')) {
+            throw new GradleException('Signing key does not look like an ASCII-armored private key (missing BEGIN PGP PRIVATE KEY BLOCK header).')
+        }
+
+        // Let Gradle derive the key ID from the private key; ignore signing.keyId to avoid format validation issues.
+        useInMemoryPgpKeys(null, secretKey, passphrase)
+        sign publishing.publications.mavenJava
+    }
+}
+
+tasks.register('checkSigningProps') {
+    description = 'Ensure signing properties are being read; outputs presence flags.'
+    doLast {
+        def propStatus = [
+            'signing.keyId': providers.gradleProperty('signing.keyId').isPresent(),
+            'signing.password': providers.gradleProperty('signing.password').isPresent(),
+            'signing.secretKeyRingFileBase64': providers.gradleProperty('signing.secretKeyRingFileBase64').isPresent(),
+            'signing.secretKey': providers.gradleProperty('signing.secretKey').isPresent()
+        ]
+
+        propStatus.each { key, present ->
+            println "${key} present=${present}"
+        }
+    }
+}
+
+tasks.register('validateSigningKey') {
+    description = 'Decodes signing.secretKeyRingFileBase64 (or signing.secretKey) and validates the PGP armor header.'
+    doLast {
+        def base64Key = providers.gradleProperty('signing.secretKeyRingFileBase64').orNull
+        def rawKey = providers.gradleProperty('signing.secretKey').orNull
+
+        def decoded = null
+        if (base64Key) {
+            try {
+                decoded = new String(base64Key.decodeBase64(), 'UTF-8')
+            } catch (Exception e) {
+                throw new GradleException("signing.secretKeyRingFileBase64 could not be base64-decoded: ${e.message}")
+            }
+        }
+        if (!decoded) {
+            decoded = rawKey
+        }
+        if (!decoded) {
+            throw new GradleException("No signing key provided. Set signing.secretKeyRingFileBase64 (base64 of armored private key) or signing.secretKey (armored private key).")
+        }
+        if (!decoded.contains('BEGIN PGP PRIVATE KEY BLOCK')) {
+            throw new GradleException("Decoded signing key does not contain the armor header 'BEGIN PGP PRIVATE KEY BLOCK'.")
+        }
+        println "Signing key looks valid (armor header found, length=${decoded.length()})."
+    }
 }

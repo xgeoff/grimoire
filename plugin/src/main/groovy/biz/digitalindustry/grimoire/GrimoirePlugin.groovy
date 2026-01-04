@@ -6,7 +6,16 @@ import biz.digitalindustry.grimoire.task.ServeTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
+/**
+ * Registers the Grimoire plugin tasks (`grim-serve`, `grim-init`, `grim-gen`, `grim`) and wires up
+ * configuration from `config.grim` into each task.
+ */
 class GrimoirePlugin implements Plugin<Project> {
+    /**
+     * Entry point invoked by Gradle to apply the plugin.
+     *
+     * @param project The Gradle project the plugin is applied to; used to register tasks and extension objects.
+     */
     void apply(Project project) {
         project.plugins.apply('base')
         def extension = project.extensions.create("grimoire", SiteGenExtension)
