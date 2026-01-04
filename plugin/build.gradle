@@ -156,6 +156,13 @@ tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).conf
     }
 }
 
+// Align plugin marker publication artifactId to 'grimoire' without redefining it.
+publishing.publications.withType(MavenPublication).configureEach {
+    if (name == 'pluginMaven') {
+        artifactId = 'grimoire'
+    }
+}
+
 tasks.register('cleanCentralBundleRepo', Delete) {
     delete centralBundleRepoDir
 }
@@ -193,7 +200,7 @@ tasks.register('centralBundle', Zip) {
             .orElse('USER_MANAGED')
             .get()
         def bundleName = providers.gradleProperty('sonatypePublisherBundleName')
-            .orElse("${project.name}-${project.version}")
+            .orElse("grimoire-${project.version}")
             .get()
         def uploadUrl = providers.gradleProperty('sonatypePublisherUploadUrl')
             .orElse('https://central.sonatype.com/api/v1/publisher/upload')

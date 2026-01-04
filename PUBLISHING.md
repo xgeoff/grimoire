@@ -58,6 +58,8 @@ This stages only the `mavenJava` publication (artifactId `grimoire`) into `build
 ```
 The task POSTs the bundle to Central and prints the returned `deploymentId`.
 
+> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.1.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.1.0`.
+
 ## Publish or monitor
 - Check status: `POST https://central.sonatype.com/api/v1/publisher/status?id=<deploymentId>` (or view in Portal UI).
 - If `publishingType=USER_MANAGED`, publish via Portal UI or `POST /api/v1/publisher/deployment/<deploymentId>`.
