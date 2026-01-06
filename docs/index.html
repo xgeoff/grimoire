@@ -19,47 +19,96 @@
         </div>
 
         <section>
-            <h2>What Grimoire Does</h2>
+            <h2>Overview</h2>
             <p>
-                Grimoire is a Gradle plugin that builds static websites using a simple Groovy templating
-                convention plus Markdown content. Drop your content into <code>pages/</code>, styles into
-                <code>assets/</code>, and configure helpers inside <code>helpers/</code>. The plugin exposes
-                commands for scaffolding, serving, and publishing your site.
+                Grimoire is a lightweight Gradle plugin that turns Markdown and HTML into static websites using
+                Groovy’s <code>SimpleTemplateEngine</code>. Layouts, partials, and pages are ordinary HTML files
+                with `${}` expressions and `<% %>` scripts, making markup readable while still providing plenty of
+                dynamic power. Every generated project ships with Cascading Skeleton CSS plus a custom stylesheet,
+                helpers, and assets so you have a complete stack from day one.
+            </p>
+            <p>
+                The plugin automatically builds a navigation tree, renders Markdown after running Groovy templates,
+                compiles Sass/SCSS into CSS, and copies binary assets untouched. Helpers (new Groovy closures under
+                <code>helpers/</code>) may be used directly in your layouts as functions, e.g. <code>${dateFormat(page.date)}</code>.
             </p>
         </section>
 
         <section>
-            <h2>Available Tasks</h2>
-            <h3>Grimoire build tasks</h3>
+            <h2>Project Layout</h2>
             <ul>
-                <li><strong><code>./gradlew grim-init</code></strong> – scaffold a new site from the bundled template.</li>
-                <li><strong><code>./gradlew grim-gen</code></strong> – render the site into the configured output directory.</li>
-                <li><strong><code>./gradlew grim</code></strong> – alias for <code>grim-gen</code>.</li>
-                <li><strong><code>./gradlew grim-serve</code></strong> – run the built-in development server bound to the port defined in <code>config.grim</code>.</li>
-            </ul>
-            <h3>Publishing helpers</h3>
-            <ul>
-                <li><strong><code>./gradlew centralBundle</code></strong> – stage the <code>grimoire</code> publication with sources and javadoc into <code>build/central-bundle-repo</code> and create a ZIP.</li>
-                <li><strong><code>./gradlew uploadCentralBundle</code></strong> – upload the bundle to Sonatype Central via the Portal Publisher API; configure your token with <code>sonatypePublisherTokenName</code> and <code>sonatypePublisherTokenPassword</code>.</li>
-                <li><strong><code>./gradlew publishToMavenLocal</code></strong> – install the signed artifacts into <code>~/.m2/repository</code> (signing is skipped automatically for this target).</li>
+                <li><code>pages/</code> – Markdown or HTML pages with optional Groovy front matter metadata.</li>
+                <li><code>layouts/</code> – `.gtpl` templates that wrap content; the default layout shows how to include partials.</li>
+                <li><code>partials/</code> – shared snippets accessed via the injected <code>partial</code> closure.</li>
+                <li><code>helpers/</code> – Groovy scripts that return closures/objects and become available by name in every template.</li>
+                <li><code>assets/</code> – CSS/JS/text files rendered through Groovy; Sass/SCSS compile to CSS; binaries copy through.</li>
+                <li><code>public/</code> – output directory (configurable via <code>config.grim</code>).</li>
+                <li><code>config.grim</code> – Groovy configuration defining directories, navigation hints, server settings, and more.</li>
             </ul>
         </section>
 
         <section>
+            <h2>Template Magic</h2>
+            <p>
+                Templates can declare metadata with triple-dashed Groovy blocks, call helpers, and embed logic.
+                Partials share the full page context plus whatever you pass in. An example page:
+            </p>
+            <pre>
+---
+title = "Docs"
+layout = "default"
+---
+
+<%
+def sections = ['Intro', 'Getting Started', 'API']
+%>
+<h1>${title}</h1>
+<ul>
+<% sections.each { %>
+    <li>${it}</li>
+<% } %>
+</ul>
+            </pre>
+            <p>
+                Use <code>${partial('sidebar', [navigation: navigation])}</code> to include shared markup, and rely
+                on the generated <code>navigation</code> tree (type, name, path, children) to build menus.
+            </p>
+        </section>
+
+        <section>
             <h2>Helpers</h2>
-            <p>Create Groovy scripts inside <code>helpers/</code>, for example <code>helpers/dateFormat.groovy</code>.</p>
-            <p>Each helper is evaluated and injected directly into the template context, so you can call it like <code>${dateFormat(page.date)}</code>.</p>
+            <p>
+                Create <code>helpers/*.groovy</code> files returning closures or objects. Each script is evaluated
+                with the current configuration bound, then injected straight into the template context under its
+                filename. For example, <code>helpers/dateFormat.groovy</code> can return a closure and you can
+                just call <code>${dateFormat(page.date)}</code> anywhere.
+            </p>
+        </section>
+
+        <section>
+            <h2>Key Tasks</h2>
+            <h3>Content workflow</h3>
+            <ul>
+                <li><strong>grim-init</strong> – scaffold a new site from the built-in template.</li>
+                <li><strong>grim-gen</strong> (<code>grim</code>) – render every page/layout into the configured output directory.</li>
+                <li><strong>grim-serve</strong> – launch the dev server (defaults to port 8080; honors <code>port</code> and <code>baseUrl</code>).</li>
+            </ul>
+            <h3>Publishing workflow</h3>
+            <ul>
+                <li><strong>centralBundle</strong> – stage only the signed <code>grimoire</code> publication with sources and javadoc into <code>build/central-bundle-repo</code> and zip it.</li>
+                <li><strong>uploadCentralBundle</strong> – POST the bundle to Sonatype Central via the Portal Publisher API (use <code>sonatypePublisherTokenName</code>/password).</li>
+                <li><strong>publishToMavenLocal</strong> – install the signed artifacts locally without trying to upload.</li>
+                <li><strong>check</strong> – run the plugin’s test suite (includes helper and parser specs).</li>
+            </ul>
         </section>
 
         <section>
             <h2>Publishing Notes</h2>
             <p>
-                Before running <code>centralBundle</code>, configure signing with in-memory PGP keys (see <code>signing.secretKeyRingFileBase64</code>)
-                and generate your bundle name with <code>sonatypePublisherBundleName</code> if you want a custom label.
-            </p>
-            <p>
-                After uploading, the Portal returns a deployment ID you can poll via
-                <code>https://central.sonatype.com/api/v1/publisher/status?id=&lt;deploymentId&gt;</code> and manually publish/drop the result.
+                Configure signing secrets (`signing.secretKeyRingFileBase64`, `signing.password`) and optionally stash
+                tokens in <code>~/.gradle/gradle.properties</code>. The default bundle name is <code>grimoire-<version></code> but you
+                can override it via <code>sonatypePublisherBundleName</code>. Poll the Portal using the returned deployment ID,
+                then publish/drop once validation completes.
             </p>
         </section>
     </div>
