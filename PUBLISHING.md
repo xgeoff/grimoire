@@ -39,7 +39,7 @@ sonatypePublisherTokenName=<portal token name>
 sonatypePublisherTokenPassword=<portal token password>
 # optional:
 # sonatypePublisherPublishingType=USER_MANAGED   # or AUTOMATIC
-# sonatypePublisherBundleName=grimoire-0.1.0
+# sonatypePublisherBundleName=grimoire-0.2.0
 # sonatypePublisherUploadUrl=https://central.sonatype.com/api/v1/publisher/upload
 ```
 
@@ -58,7 +58,7 @@ This stages only the `mavenJava` publication (artifactId `grimoire`) into `build
 ```
 The task POSTs the bundle to Central and prints the returned `deploymentId`.
 
-> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.1.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.1.0`.
+> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.2.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.2.0`.
 
 ## Publish or monitor
 - Check status: `POST https://central.sonatype.com/api/v1/publisher/status?id=<deploymentId>` (or view in Portal UI).
@@ -69,3 +69,4 @@ The task POSTs the bundle to Central and prints the returned `deploymentId`.
 - The signing block ignores `signing.keyId` if it isn’t valid hex and lets Gradle derive the key ID from the private key.
 - If signing fails with “Could not read PGP secret key,” recheck that the base64 decodes to an armored private key (`-----BEGIN PGP PRIVATE KEY BLOCK-----`) and the passphrase matches.
 - For local installs without signing, use `./gradlew -x signMavenJavaPublication publishToMavenLocal`.
+- The plugin now looks for Groovy helper scripts under `helpers/` (created in each scaffold overlay). Each `*.groovy` file is evaluated and injected directly into the template context under its filename, e.g. `dateFormat` from `helpers/dateFormat.groovy`, so you can call `${dateFormat(page.date)}` without an extra namespace.

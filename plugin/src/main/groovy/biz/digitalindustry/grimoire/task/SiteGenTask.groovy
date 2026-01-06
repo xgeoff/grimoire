@@ -12,6 +12,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.*
+import biz.digitalindustry.grimoire.util.HelperLoader
 
 /**
  * The main task for generating the static site.
@@ -51,6 +52,8 @@ abstract class SiteGenTask extends DefaultTask {
         File baseDir = configFile.get().asFile.parentFile
         def sourceRoot = (config.sourceDir ? new File(baseDir, config.sourceDir as String) : sourceDir.get().asFile)
         def outputRoot = (config.outputDir ? new File(baseDir, config.outputDir as String) : outputDir.get().asFile)
+        def helpersDir = new File(baseDir, config.paths?.helpers ?: "helpers")
+        def helpers = HelperLoader.load(helpersDir, config)
 
         // 2. Clean the effective output directory
         cleanOutputDir(outputRoot)
@@ -62,8 +65,8 @@ abstract class SiteGenTask extends DefaultTask {
         logger.lifecycle("Generating site: sourceDir={}, outputDir={}", sourceRoot.absolutePath, outputRoot.absolutePath)
 
         // 4. Process content and assets
-        processPages(sourceRoot, outputRoot, config, groovyRenderer)
-        processAssets(sourceRoot, outputRoot, config, groovyRenderer)
+        processPages(sourceRoot, outputRoot, config, groovyRenderer, helpers)
+        processAssets(sourceRoot, outputRoot, config, groovyRenderer, helpers)
 
         logger.lifecycle("✅ Grimoire site generation complete.")
     }
@@ -101,7 +104,7 @@ abstract class SiteGenTask extends DefaultTask {
     /**
      * Finds and renders all page files (.html, .md).
      */
-    private void processPages(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer) {
+    private void processPages(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer, Map<String, Object> helpers) {
         def pagesDir = new File(sourceRoot, config.paths?.pages ?: "pages")
         def layoutDir = new File(sourceRoot, config.paths?.layouts ?: "layouts")
 
@@ -118,6 +121,7 @@ abstract class SiteGenTask extends DefaultTask {
                 def parsed = FrontmatterParser.parse(pageFile)
                 def pageContext = parsed.metadata
                 def mergedContext = config + pageContext
+                mergedContext.putAll(helpers)
                 mergedContext.site = config
 
                 def templatedContent = groovyRenderer.render(parsed.content, mergedContext)
@@ -153,7 +157,7 @@ abstract class SiteGenTask extends DefaultTask {
      * Copies and processes all asset files.
      * This version is refactored to be compatible with Gradle's configuration cache.
      */
-    private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer) {
+    private void processAssets(File sourceRoot, File outputRoot, ConfigObject config, SimpleTemplateRenderer groovyRenderer, Map<String, Object> helpers) {
         def assetsDir = new File(sourceRoot, config.paths?.assets ?: "assets")
         if (!assetsDir.exists()) return
 
@@ -191,7 +195,7 @@ abstract class SiteGenTask extends DefaultTask {
 
                     try {
                         if (textExts.contains(ext)) {
-                            def rendered = groovyRenderer.render(file.text, config)
+                            def rendered = groovyRenderer.render(file.text, config + helpers)
                             outFile.text = rendered
                         } else {
                             // Binary or unknown type: copy bytes as-is
@@ -260,4 +264,5 @@ abstract class SiteGenTask extends DefaultTask {
         if (base.length() > 1 && base.endsWith("/")) base = base.substring(0, base.length() - 1)
         return base
     }
+
 }

@@ -1,4 +1,4 @@
-![The Grim](assets/images/grim-icon.png)
+![The Grim](docs/images/grim-icon.png)
 ## Grimoire: A Groovy-First Static Site Generator for Gradle
 
 Grimoire is a lightweight Gradle plugin that turns Markdown and HTML content into fully rendered static sites. Instead of juggling multiple templating engines, Grimoire leans entirely on Groovy's `SimpleTemplateEngine`. That means every layout, partial, and page is just HTML with `${groovy}` expressions, allowing you to keep markup readable while still dropping in dynamic values where needed.

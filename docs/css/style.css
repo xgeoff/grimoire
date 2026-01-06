@@ -1,0 +1,68 @@
+body {
+    background: #0b0c10;
+    color: #f5f6fa;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin: 0;
+}
+
+.docs-shell {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 3rem 1rem 4rem;
+}
+
+.docs-shell h1,
+.docs-shell h2,
+.docs-shell h3 {
+    font-weight: 600;
+}
+
+.docs-shell h1 {
+    margin-bottom: 1rem;
+}
+
+.docs-shell section {
+    background: #13182b;
+    border-radius: 6px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.docs-shell section p {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+    color: #dfe6ff;
+}
+
+.docs-shell pre {
+    background: #080a13;
+    border-left: 4px solid #9146ff;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    overflow-x: auto;
+    color: #f5f6fa;
+}
+
+.docs-shell ul {
+    padding-left: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.docs-shell strong {
+    color: #fff;
+}
+
+.docs-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.docs-icon {
+    width: 64px;
+    height: 64px;
+    display: inline-block;
+}

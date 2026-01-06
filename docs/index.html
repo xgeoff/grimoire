@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Grimoire Plugin Guide</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css"
+        integrity="sha512-9D6s9AfY86b3Jps4vVIzXQcm2ofYaX9E+SPdeV0L5u8RHq+ku0BZB6vzVEw0zSEn9fqC68CFp3tHn1g2Wx8elQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="docs-shell">
+        <div class="docs-header">
+            <img src="images/grim-icon-2.png" class="docs-icon" alt="Grimoire icon">
+            <h1>Grimoire Plugin Guide</h1>
+        </div>
+
+        <section>
+            <h2>What Grimoire Does</h2>
+            <p>
+                Grimoire is a Gradle plugin that builds static websites using a simple Groovy templating
+                convention plus Markdown content. Drop your content into <code>pages/</code>, styles into
+                <code>assets/</code>, and configure helpers inside <code>helpers/</code>. The plugin exposes
+                commands for scaffolding, serving, and publishing your site.
+            </p>
+        </section>
+
+        <section>
+            <h2>Available Tasks</h2>
+            <h3>Grimoire build tasks</h3>
+            <ul>
+                <li><strong><code>./gradlew grim-init</code></strong> – scaffold a new site from the bundled template.</li>
+                <li><strong><code>./gradlew grim-gen</code></strong> – render the site into the configured output directory.</li>
+                <li><strong><code>./gradlew grim</code></strong> – alias for <code>grim-gen</code>.</li>
+                <li><strong><code>./gradlew grim-serve</code></strong> – run the built-in development server bound to the port defined in <code>config.grim</code>.</li>
+            </ul>
+            <h3>Publishing helpers</h3>
+            <ul>
+                <li><strong><code>./gradlew centralBundle</code></strong> – stage the <code>grimoire</code> publication with sources and javadoc into <code>build/central-bundle-repo</code> and create a ZIP.</li>
+                <li><strong><code>./gradlew uploadCentralBundle</code></strong> – upload the bundle to Sonatype Central via the Portal Publisher API; configure your token with <code>sonatypePublisherTokenName</code> and <code>sonatypePublisherTokenPassword</code>.</li>
+                <li><strong><code>./gradlew publishToMavenLocal</code></strong> – install the signed artifacts into <code>~/.m2/repository</code> (signing is skipped automatically for this target).</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Helpers</h2>
+            <p>Create Groovy scripts inside <code>helpers/</code>, for example <code>helpers/dateFormat.groovy</code>.</p>
+            <p>Each helper is evaluated and injected directly into the template context, so you can call it like <code>${dateFormat(page.date)}</code>.</p>
+        </section>
+
+        <section>
+            <h2>Publishing Notes</h2>
+            <p>
+                Before running <code>centralBundle</code>, configure signing with in-memory PGP keys (see <code>signing.secretKeyRingFileBase64</code>)
+                and generate your bundle name with <code>sonatypePublisherBundleName</code> if you want a custom label.
+            </p>
+            <p>
+                After uploading, the Portal returns a deployment ID you can poll via
+                <code>https://central.sonatype.com/api/v1/publisher/status?id=&lt;deploymentId&gt;</code> and manually publish/drop the result.
+            </p>
+        </section>
+    </div>
+</body>
+
+</html>
