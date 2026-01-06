@@ -93,13 +93,6 @@ def sections = ['Intro', 'Getting Started', 'API']
                 <li><strong>grim-gen</strong> (<code>grim</code>) – render every page/layout into the configured output directory.</li>
                 <li><strong>grim-serve</strong> – launch the dev server (defaults to port 8080; honors <code>port</code> and <code>baseUrl</code>).</li>
             </ul>
-            <h3>Publishing workflow</h3>
-            <ul>
-                <li><strong>centralBundle</strong> – stage only the signed <code>grimoire</code> publication with sources and javadoc into <code>build/central-bundle-repo</code> and zip it.</li>
-                <li><strong>uploadCentralBundle</strong> – POST the bundle to Sonatype Central via the Portal Publisher API (use <code>sonatypePublisherTokenName</code>/password).</li>
-                <li><strong>publishToMavenLocal</strong> – install the signed artifacts locally without trying to upload.</li>
-                <li><strong>check</strong> – run the plugin’s test suite (includes helper and parser specs).</li>
-            </ul>
         </section>
 
         <section>
