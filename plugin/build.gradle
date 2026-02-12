@@ -323,3 +323,71 @@ tasks.register('validateSigningKey') {
         println "Signing key looks valid (armor header found, length=${decoded.length()})."
     }
 }
+
+tasks.register('exportGpgPublicKeys') {
+    description = 'Exports every local GPG public key to armored files under build/keys.'
+    outputs.dir(layout.buildDirectory.dir('keys'))
+    doLast {
+        def listOut = new ByteArrayOutputStream()
+        exec {
+            commandLine 'gpg', '--list-keys', '--with-colons'
+            standardOutput = listOut
+            errorOutput = new ByteArrayOutputStream()
+        }
+
+        def lines = listOut.toString('UTF-8').readLines()
+        def keyIds = lines.findAll { it.startsWith('pub:') }.collect {
+            def parts = it.split(':')
+            parts[4]
+        }.unique()
+
+        if (!keyIds) {
+            throw new GradleException('No GPG keys found locally to export.')
+        }
+
+        def targetDir = layout.buildDirectory.dir('keys').get().asFile
+        targetDir.mkdirs()
+
+        keyIds.each { keyId ->
+            def target = new File(targetDir, "${keyId}.asc")
+            println "Exporting ${keyId} -> ${target}"
+            exec {
+                commandLine 'gpg', '--armor', '--export', keyId
+                standardOutput = new FileOutputStream(target)
+            }
+        }
+    }
+}
+
+tasks.register('publishGpgKeysToKeyserver') {
+    description = 'Sends every local GPG public key fingerprint to a keyserver.'
+    doLast {
+        def keyserver = providers.gradleProperty('gpgKeyserver')
+            .orElse('pgp.mit.edu')
+            .get()
+
+        def listOut = new ByteArrayOutputStream()
+        exec {
+            commandLine 'gpg', '--list-keys', '--with-colons'
+            standardOutput = listOut
+            errorOutput = new ByteArrayOutputStream()
+        }
+
+        def lines = listOut.toString('UTF-8').readLines()
+        def fingerprints = lines.findAll { it.startsWith('fpr:') }.collect {
+            it.split(':')[9]
+        }.unique()
+
+        if (!fingerprints) {
+            throw new GradleException('No GPG fingerprints found locally; create or import a key first.')
+        }
+
+        println "Sending ${fingerprints.size()} key(s) to ${keyserver}:"
+        fingerprints.each { fpr ->
+            println "  -> ${fpr}"
+            exec {
+                commandLine 'gpg', '--keyserver', keyserver, '--send-keys', fpr
+            }
+        }
+    }
+}
