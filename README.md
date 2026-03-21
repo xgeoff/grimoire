@@ -66,6 +66,31 @@ A typical Grimoire project looks like this:
 
 Text assets such as `.css`, `.js`, `.html`, `.txt`, `.svg`, `.json`, `.xml`, and source maps run through the Groovy renderer, so you can interpolate variables anywhere. Binary assets are copied as-is. SASS/SCSS files under `assets/` are compiled to CSS automatically.
 
+### Page metadata & front matter syntax
+
+Pages declare metadata using Groovy front matter at the top of the file. The parser passes the triple-dash block through `ConfigSlurper`, so the grammar is native Groovy rather than TOML or YAML. Scalars, arrays, nested maps, and arrays of maps all work as long as you write the keys as Groovy literals:
+
+```groovy
+---
+title = "Arden"
+layout = "default"
+tags = ["alpha", "beta"]
+sidebar {
+    title = "Learn Arden"
+    sections = [
+        [
+            title = "Start Here"
+            links = [
+                [label = "Canonical Grammar", href = "canonical-grammar.html"]
+            ]
+        ]
+    ]
+}
+---
+```
+
+Grimoire exposes this metadata inside layouts, partials, and helpers through a stable `page` object. `page.meta` holds the raw map, while `page.title`, `page.layout`, `page.path`, and `page.url` are derived from the metadata and filesystem. Missing metadata resolves to `null`, so use safe navigation (`page.meta.sidebar?.title`) when rendering optional structures to prevent `MissingPropertyException` errors.
+
 ### Groovy Templates & Partials
 
 Because everything is Groovy, you can freely mix inline scripts and expressions:
@@ -95,13 +120,17 @@ ${partial('sidebar', [navigation: navigation])}
 
 Inside a partial you still have access to the full site context, including a `navigation` tree that Grimoire builds from the `pages/` directory. Each navigation item includes `type` (`file` or `directory`), `name`, `path` (without extension), and optional `children`, making it easy to loop through sections when rendering menus.
 
+### Markdown headings & anchors
+
+Markdown pages are rendered with Flexmark, and the renderer includes the heading anchor extension. Every generated `<h1>`–`<h6>` tag receives an `id` slug that matches the normalized heading text, so you can link to sections in sidebars or table-of-contents helpers without adding custom IDs.
+
 ## Getting Started
 
 ### 1. Include the Plugin
 
 ```groovy
 plugins {
-    id 'biz.digitalindustry.grimoire' version '1.0.0'
+    id 'biz.digitalindustry.grimoire' version '0.3.0'
 }
 ```
 

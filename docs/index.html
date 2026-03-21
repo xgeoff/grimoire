@@ -76,6 +76,47 @@ def sections = ['Intro', 'Getting Started', 'API']
         </section>
 
         <section>
+            <h2>Page metadata</h2>
+            <p>
+                Groovy front matter is processed with <code>ConfigSlurper</code>, so the block at the top of a page is
+                a Groovy script. Scalars, arrays, nested maps, and arrays of maps work when written as Groovy literals:
+            </p>
+            <pre>
+---
+title = "Arden"
+layout = "default"
+sidebar {
+    title = "Learn Arden"
+    sections = [
+        [
+            title = "Start Here"
+            links = [
+                [label = "Canonical Grammar", href = "canonical-grammar.html"]
+            ]
+        ]
+    ]
+}
+tags = ["alpha", "beta"]
+---
+            </pre>
+            <p>
+                The parsed metadata lives under a stable <code>page</code> object inside layouts, partials, and helpers.
+                The map is available as <code>page.meta</code>, and the renderer also adds <code>page.title</code>,
+                <code>page.layout</code>, <code>page.path</code>, and <code>page.url</code>. Missing keys resolve to <code>null</code>,
+                so use safe navigation (`page.meta.sidebar?.title`) for optional values.
+            </p>
+        </section>
+
+        <section>
+            <h2>Heading anchors</h2>
+            <p>
+                Markdown headings go through Flexmark with the heading anchor extension enabled, so every generated
+                `<h1>`–`<h6>` receives an automatic `id` derived from the heading text. Use those IDs for
+                in-page table-of-contents helpers or page-specific navigation without adding manual anchors.
+            </p>
+        </section>
+
+        <section>
             <h2>Helpers</h2>
             <p>
                 Create <code>helpers/*.groovy</code> files returning closures or objects. Each script is evaluated

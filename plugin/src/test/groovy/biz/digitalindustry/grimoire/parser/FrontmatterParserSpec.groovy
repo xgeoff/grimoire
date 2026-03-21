@@ -29,4 +29,38 @@ class FrontmatterParserSpec extends Specification {
         result.metadata.isEmpty()
         result.content.contains("Welcome")
     }
+
+    def "parses nested front matter structures"() {
+        given:
+        def fixture = File.createTempFile("nested", ".md")
+        fixture.text = '''---
+title = "Nested"
+tags = ["alpha", "beta"]
+sidebar {
+    title = "Meta"
+    sections = [
+        [
+            title: "Intro",
+            links: [
+                [label: "Option", href: "option.html"]
+            ]
+        ]
+    ]
+}
+---
+
+# Nested
+---'''
+
+        when:
+        def result = FrontmatterParser.parse(fixture)
+
+        then:
+        result.metadata.sidebar.title == "Meta"
+        result.metadata.sidebar.sections[0].links[0].label == "Option"
+        result.metadata.tags == ["alpha", "beta"]
+
+        cleanup:
+        fixture.delete()
+    }
 }

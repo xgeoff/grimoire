@@ -14,8 +14,9 @@ class MarkdownParserSpec extends Specification {
         def html = MarkdownParser.toHtml(rawMarkdown)
 
         then:
-        html.contains("<h1>") || html.contains("<h2>")
+        (html =~ /<h[1-6][^>]*>/).find()
         html.contains("<p>")
         html.contains("<table")
+        (html =~ /<h[1-6][^>]*id="[^"]+"/).find()
     }
 }

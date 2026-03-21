@@ -3,18 +3,20 @@ package biz.digitalindustry.grimoire.parser
 import com.vladsch.flexmark.ext.tables.TablesExtension
 import com.vladsch.flexmark.html.HtmlRenderer
 import com.vladsch.flexmark.parser.Parser
+import com.vladsch.flexmark.util.data.MutableDataSet
 
 class MarkdownParser {
 
-    // Enable Markdown table support (and ensure renderer knows about it)
-    static final def extensions = [TablesExtension.create()]
-    static final Parser parser = Parser.builder().extensions(extensions).build()
-    static final HtmlRenderer renderer = HtmlRenderer.builder().extensions(extensions).build()
+    private static final MutableDataSet OPTIONS = new MutableDataSet()
+        .set(Parser.EXTENSIONS, [TablesExtension.create()])
+        .set(HtmlRenderer.GENERATE_HEADER_ID, true)
+        .set(HtmlRenderer.RENDER_HEADER_ID, true)
+    static final Parser parser = Parser.builder(OPTIONS).build()
+    static final HtmlRenderer renderer = HtmlRenderer.builder(OPTIONS).build()
 
     static String toHtml(String markdown) {
         def document = parser.parse(markdown)
         def html = renderer.render(document)
-        // Unescape HTML entities that may appear inside Groovy template output
         html.replace('&quot;', '"')
     }
 }

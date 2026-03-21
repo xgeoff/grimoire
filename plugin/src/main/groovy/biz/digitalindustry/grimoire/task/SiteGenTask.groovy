@@ -13,6 +13,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.*
 import biz.digitalindustry.grimoire.util.HelperLoader
+import java.util.LinkedHashMap
 
 /**
  * The main task for generating the static site.
@@ -119,15 +120,19 @@ abstract class SiteGenTask extends DefaultTask {
         pagesDir.eachFileMatch(~/.*\.(html|md)/) { File pageFile ->
             try {
                 def parsed = FrontmatterParser.parse(pageFile)
-                def pageContext = parsed.metadata
+                def pageContext = new LinkedHashMap(parsed.metadata ?: [:])
+                def layoutName = pageContext.layout ?: "default"
                 def mergedContext = config + pageContext
                 mergedContext.putAll(helpers)
                 mergedContext.site = config
 
+                def relativePath = SiteGenTask.normalizeRelativePath(pagesDir, pageFile)
+                def pagePath = SiteGenTask.normalizePagePath(relativePath)
+                mergedContext.page = SiteGenTask.buildPageObject(pageContext, layoutName, pagePath, config.baseUrl as String)
+
                 def templatedContent = groovyRenderer.render(parsed.content, mergedContext)
                 def renderedContent = pageFile.name.endsWith(".md") ? MarkdownParser.toHtml(templatedContent) : templatedContent
 
-                def layoutName = pageContext.layout ?: "default"
                 def groovyLayoutFile = new File(layoutDir, "${layoutName}.gtpl")
 
                 if (!groovyLayoutFile.exists()) {
@@ -233,6 +238,45 @@ abstract class SiteGenTask extends DefaultTask {
             return []
         }
         return buildNavigationEntries(pagesDir, pagesDir)
+    }
+
+    private static Map<String, Object> buildPageObject(Map<String, Object> metadata, String layout, String path, String baseUrl) {
+        def pageMeta = metadata ?: [:]
+        return [
+            title: pageMeta.title,
+            layout: layout,
+            path: path,
+            url: buildPageUrl(baseUrl, path),
+            meta: pageMeta
+        ]
+    }
+
+    private static String normalizeRelativePath(File base, File file) {
+        def relative = base.toPath().relativize(file.toPath()).toString()
+        return relative.replace(File.separator, '/')
+    }
+
+    private static String normalizePagePath(String relativePath) {
+        def candidate = relativePath.replaceAll(/(?i)\.(md|html?)$/, '')
+        candidate = candidate.replaceFirst(/(?i)\/index$/, '')
+        candidate = candidate.replaceFirst(/(?i)^index$/, '')
+        if (candidate.endsWith('/')) {
+            candidate = candidate.substring(0, candidate.length() - 1)
+        }
+        return candidate
+    }
+
+    private static String buildPageUrl(String baseUrl, String pagePath) {
+        def base = baseUrl ?: ''
+        def suffix = pagePath ? (pagePath.startsWith('/') ? pagePath : '/' + pagePath) : ''
+        def combined = (base + suffix).replaceAll('//+', '/')
+        if (!combined) {
+            return '/'
+        }
+        if (!combined.startsWith('/')) {
+            combined = '/' + combined
+        }
+        return combined
     }
 
     private List<Map<String, Object>> buildNavigationEntries(File dir, File root) {
