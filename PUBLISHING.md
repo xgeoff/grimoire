@@ -68,7 +68,7 @@ The task POSTs the bundle to Central and prints the returned `deploymentId`.
 ## Publish to the Gradle Plugin Portal
 Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.3.0' }` syntax can resolve the implementation automatically.
 
-1. **Plugin metadata** is already configured in `plugin/build.gradle` via the `gradlePlugin` and `pluginBundle` blocks (see website, SCM, tags, and description).
+1. **Plugin metadata** is already configured in `plugin/build.gradle` via the `gradlePlugin` block (plugin ID, website, SCM, display name, description, and tags).
 2. **Set Portal credentials** in `~/.gradle/gradle.properties`:
    ```
    gradle.publish.key=<Plugin Portal API token key>

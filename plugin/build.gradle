@@ -37,19 +37,17 @@ dependencies {
 }
 
 gradlePlugin {
+    website = 'https://github.com/xgeoff/grimoire'
+    vcsUrl = 'https://github.com/xgeoff/grimoire.git'
     plugins {
         grim {
             id = 'biz.digitalindustry.grimoire'
             implementationClass = 'biz.digitalindustry.grimoire.GrimoirePlugin'
+            displayName = 'Grimoire Gradle Plugin'
+            description = 'A Gradle plugin for static site generation using Markdown, Sass, and Elian glyphs'
+            tags.set(['static-site', 'gradle', 'markdown'])
         }
     }
-}
-
-pluginBundle {
-    website = 'https://github.com/xgeoff/grimoire'
-    vcsUrl = 'https://github.com/xgeoff/grimoire.git'
-    description = 'A Gradle plugin for static site generation using Markdown, Sass, and Elian glyphs'
-    tags = ['static-site', 'gradle', 'markdown']
 }
 
 // Add a source set for the functional test suite
@@ -159,7 +157,7 @@ def bundlePublicationTasks = centralBundlePublications.collect { pub ->
 
 // Prevent non-grimoire publications from staging into the bundle repository.
 tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
-    if (repository.name == centralBundleRepoName && publication.name != 'mavenJava') {
+    if (repository?.name == centralBundleRepoName && publication?.name != 'mavenJava') {
         enabled = false
     }
 }
