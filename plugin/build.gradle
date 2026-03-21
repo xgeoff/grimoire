@@ -12,6 +12,7 @@ plugins {
     id 'groovy'
     id 'maven-publish'
     id 'signing'
+    id 'com.gradle.plugin-publish' version '1.2.0'
 }
 
 group = 'biz.digitalindustry'         // Must match your verified groupId
@@ -42,6 +43,13 @@ gradlePlugin {
             implementationClass = 'biz.digitalindustry.grimoire.GrimoirePlugin'
         }
     }
+}
+
+pluginBundle {
+    website = 'https://github.com/xgeoff/grimoire'
+    vcsUrl = 'https://github.com/xgeoff/grimoire.git'
+    description = 'A Gradle plugin for static site generation using Markdown, Sass, and Elian glyphs'
+    tags = ['static-site', 'gradle', 'markdown']
 }
 
 // Add a source set for the functional test suite

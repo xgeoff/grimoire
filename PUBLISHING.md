@@ -65,6 +65,23 @@ The task POSTs the bundle to Central and prints the returned `deploymentId`.
 - If `publishingType=USER_MANAGED`, publish via Portal UI or `POST /api/v1/publisher/deployment/<deploymentId>`.
 - Drop a failed/abandoned deployment: `DELETE /api/v1/publisher/deployment/<deploymentId>`.
 
+## Publish to the Gradle Plugin Portal
+Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.3.0' }` syntax can resolve the implementation automatically.
+
+1. **Plugin metadata** is already configured in `plugin/build.gradle` via the `gradlePlugin` and `pluginBundle` blocks (see website, SCM, tags, and description).
+2. **Set Portal credentials** in `~/.gradle/gradle.properties`:
+   ```
+   gradle.publish.key=<Plugin Portal API token key>
+   gradle.publish.secret=<Plugin Portal API token secret>
+   ```
+3. **Publish the marker**:
+   ```
+   ./gradlew publishPlugins
+   ```
+   This task pushes the marker to https://plugins.gradle.org and ensures the portal points at your Maven Central coordinates. After it completes, consumer builds can simply declare the plugin ID in the `plugins {}` block without extra repositories.
+
+> **Note:** The portal uses its own credentials; Sonatype Maven Central tokens cannot substitute for `gradle.publish.key`/`secret`.
+
 ## Notes and pitfalls
 - The signing block ignores `signing.keyId` if it isn’t valid hex and lets Gradle derive the key ID from the private key.
 - If signing fails with “Could not read PGP secret key,” recheck that the base64 decodes to an armored private key (`-----BEGIN PGP PRIVATE KEY BLOCK-----`) and the passphrase matches.
