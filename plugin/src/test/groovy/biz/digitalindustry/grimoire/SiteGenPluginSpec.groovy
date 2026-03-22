@@ -120,6 +120,66 @@ class SiteGenPluginSpec extends Specification {
         html.contains("<table") && (html.contains("<td") || html.contains("<th"))
     }
 
+    def "text assets without front matter are copied unchanged"() {
+        when:
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then:
+        def outputFile = new File(testDir.toFile(), "public/text/plain.txt")
+        outputFile.exists()
+        outputFile.text == 'literal ${shouldNotRender}\n'
+    }
+
+    def "text assets with front matter are rendered and stripped"() {
+        when:
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then:
+        def outputFile = new File(testDir.toFile(), "public/css/themed.css")
+        outputFile.exists()
+        def css = outputFile.text
+        css.contains('color: #e8a838;')
+        !css.contains('accent =')
+        !css.contains('---')
+    }
+
+    def "minified js asset without front matter copies successfully"() {
+        when:
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then:
+        def outputFile = new File(testDir.toFile(), "public/js/app.min.js")
+        outputFile.exists()
+        outputFile.text == 'const app=(()=>{const msg="${notGroovy}";return{boot(){console.log(msg)}}})();app.boot();\n'
+    }
+
+    def "binary assets are copied byte for byte"() {
+        when:
+        GradleRunner.create()
+                .withProjectDir(testDir.toFile())
+                .withArguments("grim-gen", "--stacktrace")
+                .withPluginClasspath()
+                .build()
+
+        then:
+        def sourceFile = new File(testDir.toFile(), "assets/images/favicon-32.png")
+        def outputFile = new File(testDir.toFile(), "public/images/favicon-32.png")
+        outputFile.exists()
+        outputFile.bytes == sourceFile.bytes
+    }
+
     def cleanupSpec() {
         File testProjectDir = testDir.toFile()
         println "Cleaning up test directory: ${testProjectDir.absolutePath}"

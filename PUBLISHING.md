@@ -5,7 +5,7 @@ This project uses the Central Portal “bundle upload” flow instead of the leg
 ## Prerequisites
 - GPG private key with passphrase.
 - Sonatype Central Portal access token (from https://central.sonatype.com → Account → Access Tokens).
-- JDK 21 (wrapper downloads Gradle 8.6 automatically).
+- JDK 17 (wrapper downloads Gradle 8.6 automatically; we publish targeting toolchain 17).
 
 ## Configure signing
 Put these in `~/.gradle/gradle.properties` (or export as `ORG_GRADLE_PROJECT_*`):
@@ -39,7 +39,7 @@ sonatypePublisherTokenName=<portal token name>
 sonatypePublisherTokenPassword=<portal token password>
 # optional:
 # sonatypePublisherPublishingType=USER_MANAGED   # or AUTOMATIC
-# sonatypePublisherBundleName=grimoire-0.3.0
+# sonatypePublisherBundleName=grimoire-0.4.0
 # sonatypePublisherUploadUrl=https://central.sonatype.com/api/v1/publisher/upload
 ```
 
@@ -58,7 +58,7 @@ This stages only the `mavenJava` publication (artifactId `grimoire`) into `build
 ```
 The task POSTs the bundle to Central and prints the returned `deploymentId`.
 
-> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.3.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.3.0`.
+> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.4.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.4.0`.
 
 ## Publish or monitor
 - Check status: `POST https://central.sonatype.com/api/v1/publisher/status?id=<deploymentId>` (or view in Portal UI).
@@ -66,7 +66,7 @@ The task POSTs the bundle to Central and prints the returned `deploymentId`.
 - Drop a failed/abandoned deployment: `DELETE /api/v1/publisher/deployment/<deploymentId>`.
 
 ## Publish to the Gradle Plugin Portal
-Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.3.0' }` syntax can resolve the implementation automatically.
+Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.4.0' }` syntax can resolve the implementation automatically.
 
 1. **Plugin metadata** is already configured in `plugin/build.gradle` via the `gradlePlugin` block (plugin ID, website, SCM, display name, description, and tags).
 2. **Set Portal credentials** in `~/.gradle/gradle.properties`:
@@ -74,11 +74,20 @@ Once the bundle hits Maven Central, the portal still needs a plugin marker so th
    gradle.publish.key=<Plugin Portal API token key>
    gradle.publish.secret=<Plugin Portal API token secret>
    ```
-3. **Publish the marker**:
+3. **Run the release command**:
    ```
-   ./gradlew publishPlugins
+   ./gradlew publishGradlePlugin
    ```
-   This task pushes the marker to https://plugins.gradle.org and ensures the portal points at your Maven Central coordinates. After it completes, consumer builds can simply declare the plugin ID in the `plugins {}` block without extra repositories.
+   This task delegates to the Gradle Plugin Publish plugin and pushes the marker to https://plugins.gradle.org so the portal points at your Maven Central coordinates. After it completes, consumer builds can simply declare the plugin ID in the `plugins {}` block without extra repositories.
+
+### Release sequence
+
+For a normal release, the commands are:
+
+1. `./gradlew uploadCentralBundle`
+2. Publish the deployment in the Sonatype Central UI if you are using `USER_MANAGED`
+3. Wait until `biz.digitalindustry:grimoire:<version>` is visible on Maven Central
+4. `./gradlew publishGradlePlugin`
 
 > **Note:** The portal uses its own credentials; Sonatype Maven Central tokens cannot substitute for `gradle.publish.key`/`secret`.
 

@@ -200,8 +200,17 @@ abstract class SiteGenTask extends DefaultTask {
 
                     try {
                         if (textExts.contains(ext)) {
-                            def rendered = groovyRenderer.render(file.text, config + helpers)
-                            outFile.text = rendered
+                            def rawText = file.text
+                            if (FrontmatterParser.hasFrontmatter(rawText)) {
+                                def parsed = FrontmatterParser.parse(rawText)
+                                def assetContext = config + (parsed.metadata ?: [:])
+                                assetContext.putAll(helpers)
+                                assetContext.site = config
+                                def rendered = groovyRenderer.render(parsed.content, assetContext)
+                                outFile.text = rendered
+                            } else {
+                                outFile.bytes = file.bytes
+                            }
                         } else {
                             // Binary or unknown type: copy bytes as-is
                             outFile.bytes = file.bytes

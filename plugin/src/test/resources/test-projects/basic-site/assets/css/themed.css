@@ -1,0 +1,6 @@
+---
+accent = "#e8a838"
+---
+body {
+  color: ${accent};
+}

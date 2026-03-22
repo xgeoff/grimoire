@@ -63,4 +63,20 @@ sidebar {
         cleanup:
         fixture.delete()
     }
+
+    def "preserves asset body exactly after stripping front matter"() {
+        given:
+        def text = '''---
+accent = "#e8a838"
+---
+body { color: ${accent}; }
+'''
+
+        when:
+        def result = FrontmatterParser.parse(text)
+
+        then:
+        result.metadata.accent == "#e8a838"
+        result.content == 'body { color: ${accent}; }\n'
+    }
 }

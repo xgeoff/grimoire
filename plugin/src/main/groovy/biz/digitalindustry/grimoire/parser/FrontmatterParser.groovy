@@ -1,6 +1,10 @@
 package biz.digitalindustry.grimoire.parser
 
+import java.util.regex.Pattern
+
 class FrontmatterParser {
+
+    private static final Pattern FRONTMATTER_PATTERN = ~/(?ms)^---\s*\n(.*?)^---\s*\n?/
 
     static class ParsedFrontmatter {
         Map<String, Object> metadata
@@ -8,11 +12,11 @@ class FrontmatterParser {
     }
 
     static ParsedFrontmatter parse(File file) {
-        def text = file.text
+        return parse(file.text)
+    }
 
-        // Match frontmatter block: starts with --- and ends with ---
-        def pattern = ~/(?ms)^---\s*\n(.*?)^---\s*\n?/
-        def matcher = pattern.matcher(text)
+    static ParsedFrontmatter parse(String text) {
+        def matcher = FRONTMATTER_PATTERN.matcher(text)
 
         if (matcher.find()) {
             def frontmatterText = matcher.group(1)
@@ -23,14 +27,17 @@ class FrontmatterParser {
 
             return new ParsedFrontmatter(
                     metadata: config as Map<String, Object>,
-                    content: bodyText.trim()
+                    content: bodyText
             )
         } else {
-            // No frontmatter, return full content
             return new ParsedFrontmatter(
                     metadata: [:],
-                    content: text.trim()
+                    content: text
             )
         }
+    }
+
+    static boolean hasFrontmatter(String text) {
+        return FRONTMATTER_PATTERN.matcher(text).find()
     }
 }

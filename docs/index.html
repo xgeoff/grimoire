@@ -25,12 +25,15 @@
                 Groovy’s <code>SimpleTemplateEngine</code>. Layouts, partials, and pages are ordinary HTML files
                 with `${}` expressions and `<% %>` scripts, making markup readable while still providing plenty of
                 dynamic power. Every generated project ships with Cascading Skeleton CSS plus a custom stylesheet,
-                helpers, and assets so you have a complete stack from day one.
+                helpers, and assets so you have a complete stack from day one. The toolchain targets Java 17, so
+                the minimum runtime this plugin requires is JDK 17.
             </p>
             <p>
                 The plugin automatically builds a navigation tree, renders Markdown after running Groovy templates,
-                compiles Sass/SCSS into CSS, and copies binary assets untouched. Helpers (new Groovy closures under
-                <code>helpers/</code>) may be used directly in your layouts as functions, e.g. <code>${dateFormat(page.date)}</code>.
+                compiles Sass/SCSS into CSS, and keeps assets safe by default. Binary assets always copy through, and
+                text assets only render as Groovy templates when they explicitly opt in with front matter. Helpers (new
+                Groovy closures under <code>helpers/</code>) may be used directly in your layouts as functions, e.g.
+                <code>${dateFormat(page.date)}</code>.
             </p>
         </section>
 
@@ -41,10 +44,34 @@
                 <li><code>layouts/</code> – `.gtpl` templates that wrap content; the default layout shows how to include partials.</li>
                 <li><code>partials/</code> – shared snippets accessed via the injected <code>partial</code> closure.</li>
                 <li><code>helpers/</code> – Groovy scripts that return closures/objects and become available by name in every template.</li>
-                <li><code>assets/</code> – CSS/JS/text files rendered through Groovy; Sass/SCSS compile to CSS; binaries copy through.</li>
-                <li><code>public/</code> – output directory (configurable via <code>config.grim</code>).</li>
-                <li><code>config.grim</code> – Groovy configuration defining directories, navigation hints, server settings, and more.</li>
+                <li><code>assets/</code> – Sass/SCSS compile to CSS; binary files copy raw; text assets only render when they start with front matter.</li>
+            <li><code>public/</code> – output directory (configurable via <code>config.grim</code>).</li>
+            <li><code>config.grim</code> – Groovy configuration defining directories, navigation hints, server settings, and more.</li>
+        </ul>
+        </section>
+
+        <section>
+            <h2>Asset templating</h2>
+            <p>
+                Grimoire no longer templates text-like assets implicitly. The rule is simple: binary assets copy raw,
+                text assets without front matter copy raw, and text assets with front matter render through Groovy after
+                the metadata block is stripped.
+            </p>
+            <ul>
+                <li><strong>Binary asset</strong> – copied byte-for-byte.</li>
+                <li><strong>Text asset without front matter</strong> – copied unchanged.</li>
+                <li><strong>Text asset with front matter</strong> – front matter stripped, body rendered through Groovy.</li>
             </ul>
+            <pre>
+---
+accent = "#e8a838"
+---
+body { color: ${accent}; }
+            </pre>
+            <p>
+                This keeps authored CSS/JS templates possible while allowing built artifacts such as Vite bundles to
+                live under <code>assets/</code> untouched.
+            </p>
         </section>
 
         <section>

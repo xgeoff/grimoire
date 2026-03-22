@@ -51,7 +51,7 @@ A typical Grimoire project looks like this:
 |-- layouts/           ← Groovy layout templates (`.gtpl`)
 |-- partials/          ← Groovy partials (`.gtpl`) referenced via `${partial('name')}`
 |-- data/              ← Optional structured data (JSON/YAML/Groovy) merged into context
-|-- assets/            ← Copied to the output directory; CSS/JS can also use Groovy
+|-- assets/            ← Raw assets by default; add front matter to opt text assets into Groovy rendering
 |-- public/            ← Generated site (configurable)
 ```
 
@@ -64,7 +64,27 @@ A typical Grimoire project looks like this:
 | Metadata      | Groovy front matter (at the top of `.md`/`.html` files)       |
 | Output        | `public/` directory (configurable)                            |
 
-Text assets such as `.css`, `.js`, `.html`, `.txt`, `.svg`, `.json`, `.xml`, and source maps run through the Groovy renderer, so you can interpolate variables anywhere. Binary assets are copied as-is. SASS/SCSS files under `assets/` are compiled to CSS automatically.
+> Requires JDK 17 or later (toolchain is set to 17 to keep compatibility with older runtimes).
+
+### Asset templating
+
+Assets are safe by default. The rule is:
+
+- Binary assets are always copied as-is.
+- Text assets such as `.css`, `.js`, `.html`, `.txt`, `.svg`, `.json`, `.xml`, and source maps are copied unchanged unless they begin with a front matter block.
+- Text assets with front matter have that metadata stripped, merged into the render context, and only the body is rendered through Groovy.
+- SASS/SCSS files under `assets/` still compile to CSS automatically.
+
+Example templated asset:
+
+```css
+---
+accent = "#e8a838"
+---
+body { color: ${accent}; }
+```
+
+Built frontend artifacts such as Vite bundles should be placed under `assets/` without front matter so Grimoire preserves them byte-for-byte.
 
 ### Page metadata & front matter syntax
 
@@ -130,7 +150,7 @@ Markdown pages are rendered with Flexmark, and the renderer includes the heading
 
 ```groovy
 plugins {
-    id 'biz.digitalindustry.grimoire' version '0.3.0'
+    id 'biz.digitalindustry.grimoire' version '0.4.0'
 }
 ```
 
@@ -209,6 +229,12 @@ This repository contains the Grimoire Gradle plugin. Run the full suite with:
 
 ```bash
 ./gradlew check
+```
+
+Release notes live in `PUBLISHING.md`. Once a version is live on Maven Central, publish the Gradle Plugin Portal marker with:
+
+```bash
+./gradlew publishGradlePlugin
 ```
 
 ## License
