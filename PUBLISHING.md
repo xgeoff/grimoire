@@ -39,7 +39,7 @@ sonatypePublisherTokenName=<portal token name>
 sonatypePublisherTokenPassword=<portal token password>
 # optional:
 # sonatypePublisherPublishingType=USER_MANAGED   # or AUTOMATIC
-# sonatypePublisherBundleName=grimoire-0.4.0
+# sonatypePublisherBundleName=grimoire-0.5.0
 # sonatypePublisherUploadUrl=https://central.sonatype.com/api/v1/publisher/upload
 ```
 
@@ -58,7 +58,7 @@ This stages only the `mavenJava` publication (artifactId `grimoire`) into `build
 ```
 The task POSTs the bundle to Central and prints the returned `deploymentId`.
 
-> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.4.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.4.0`.
+> **Tip:** The default bundle name is now `grimoire-<version>` so the Central Portal UI says “grimoire-0.5.0”; override it with `sonatypePublisherBundleName` if needed, e.g. `-PsonatypePublisherBundleName=grimoire-0.5.0`.
 
 ## Publish or monitor
 - Check status: `POST https://central.sonatype.com/api/v1/publisher/status?id=<deploymentId>` (or view in Portal UI).
@@ -66,7 +66,7 @@ The task POSTs the bundle to Central and prints the returned `deploymentId`.
 - Drop a failed/abandoned deployment: `DELETE /api/v1/publisher/deployment/<deploymentId>`.
 
 ## Publish to the Gradle Plugin Portal
-Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.4.0' }` syntax can resolve the implementation automatically.
+Once the bundle hits Maven Central, the portal still needs a plugin marker so the `plugins { id 'biz.digitalindustry.grimoire' version '0.5.0' }` syntax can resolve the implementation automatically.
 
 1. **Plugin metadata** is already configured in `plugin/build.gradle` via the `gradlePlugin` block (plugin ID, website, SCM, display name, description, and tags).
 2. **Set Portal credentials** in `~/.gradle/gradle.properties`:

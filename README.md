@@ -150,7 +150,7 @@ Markdown pages are rendered with Flexmark, and the renderer includes the heading
 
 ```groovy
 plugins {
-    id 'biz.digitalindustry.grimoire' version '0.4.0'
+    id 'biz.digitalindustry.grimoire' version '0.5.0'
 }
 ```
 
